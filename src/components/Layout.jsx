@@ -60,7 +60,7 @@ export default function Layout() {
               G
             </div>
             <div className="leading-tight">
-              <div className="text-[13px] font-semibold text-ink">GOFAMINT</div>
+              <div className="text-[13px] font-semibold text-ink">Gospelar</div>
               <div className="text-[11px] text-zinc-500">Admin Console</div>
             </div>
           </div>

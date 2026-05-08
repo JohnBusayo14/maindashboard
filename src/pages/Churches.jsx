@@ -248,7 +248,7 @@ function CreateChurchModal({ onClose, onSaved, req, toast }) {
       <form onSubmit={submit} className="flex flex-col gap-4">
         <div>
           <label className="label">Church name</label>
-          <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="GOFAMINT Lagos" />
+          <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Gospelar Lagos" />
         </div>
         <div>
           <label className="label">Location</label>
