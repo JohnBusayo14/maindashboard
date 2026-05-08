@@ -83,11 +83,25 @@ export default function Translations() {
   const seed = async () => {
     setSeeding(true);
     try {
-      const d = await req('/api/admin/translations/seed', 'POST', {});
-      toast.success(d?.message || 'Translation rows seeded.');
+      // First: bulk import from ui_translations.js — UPSERTs real translated
+      // values across all four languages (the old /seed endpoint only writes
+      // English placeholders + empty rows).
+      const d = await req('/api/admin/translations/import-from-source', 'POST', {});
+      toast.success(d?.message || 'Translations imported from source.');
       load();
     } catch (e) {
-      toast.error(e.message || 'Seed failed.');
+      // Older backend without the new endpoint → fall back to /seed.
+      if (e.status === 404) {
+        try {
+          const d = await req('/api/admin/translations/seed', 'POST', {});
+          toast.info(d?.message || 'Empty rows seeded (legacy endpoint).');
+          load();
+        } catch (e2) {
+          toast.error(e2.message || 'Seed failed.');
+        }
+      } else {
+        toast.error(e.message || 'Import failed.');
+      }
     } finally {
       setSeeding(false);
     }
