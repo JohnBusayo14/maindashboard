@@ -16,6 +16,8 @@ import Translations from './pages/Translations.jsx';
 import Leaderboard  from './pages/Leaderboard.jsx';
 import Approvals    from './pages/Approvals.jsx';
 import Churches     from './pages/Churches.jsx';
+import Books        from './pages/Books.jsx';
+import BookEntries  from './pages/BookEntries.jsx';
 
 const Guard = ({ children }) => {
   const { isAuthed } = useAuth();
@@ -44,7 +46,9 @@ export default function App() {
         <Route path="subscribers"  element={<Subscribers />} />
         <Route path="pricing"      element={<Pricing />} />
         <Route path="approvals"    element={<Approvals />} />
-        <Route path="churches"     element={<Churches />} />
+        <Route path="churches"            element={<Churches />} />
+        <Route path="books"               element={<Books />} />
+        <Route path="books/:bookId/entries" element={<BookEntries />} />
         <Route path="leaderboard"  element={<Leaderboard />} />
         <Route path="banners"      element={<Banners />} />
         <Route path="bible-verses" element={<BibleVerses />} />

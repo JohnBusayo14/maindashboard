@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
-  LayoutGrid, Library, BookOpen, Zap, Music2, CalendarDays, Languages,
+  LayoutGrid, Library, BookOpen, BookMarked, Zap, Music2, CalendarDays, Languages,
   CreditCard, DollarSign, ShieldCheck, Building2, Trophy, Megaphone, Quote,
   Search, MoreHorizontal, LogOut, ChevronsUpDown,
 } from 'lucide-react';
@@ -10,6 +10,7 @@ import { useAuth } from '../auth.jsx';
 const NAV = [
   { section: 'Content',  items: [
     { to: '/',             icon: LayoutGrid,   label: 'Dashboard' },
+    { to: '/books',        icon: BookMarked,   label: 'Books' },
     { to: '/units',        icon: Library,      label: 'Units' },
     { to: '/lessons',      icon: BookOpen,     label: 'Lessons' },
     { to: '/quizzes',      icon: Zap,          label: 'Quizzes' },
