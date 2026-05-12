@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, X, RefreshCcw, ShieldCheck } from 'lucide-react';
+import {
+  Check, X, RefreshCcw, ShieldCheck, Mail, Send, AlertTriangle,
+  CheckCircle2, Sparkles, ChevronDown, ChevronUp,
+} from 'lucide-react';
 import { useAuth } from '../auth.jsx';
 import { makeReq } from '../api.js';
 import { useToast } from '../components/Toast.jsx';
@@ -97,6 +100,11 @@ export default function Approvals() {
         ))}
       </div>
 
+      {/* Mail health card — surfaces the Resend probe so admins can confirm
+          the approval/rejection emails will actually deliver before they
+          act on a pending application. */}
+      <MailHealthCard req={req} toast={toast} />
+
       <div className="card overflow-hidden">
         {loading ? (
           <div className="p-6"><Skeleton lines={5} /></div>
@@ -175,6 +183,198 @@ function Skeleton({ lines = 4 }) {
       {Array.from({ length: lines }).map((_, i) => (
         <div key={i} className="h-3 w-full animate-pulse rounded bg-zinc-100" />
       ))}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Mail health — collapsible card. Probes /api/admin/mail-test on mount,
+// shows whether Resend is ready, lets the admin send a one-shot test email
+// to confirm delivery without leaving the page.
+// ─────────────────────────────────────────────────────────────────────────────
+function MailHealthCard({ req, toast }) {
+  const [open,    setOpen]    = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [probe,   setProbe]   = useState(null);
+  const [to,      setTo]      = useState('');
+  const [sending, setSending] = useState(false);
+  const [lastSend,setLastSend]= useState(null); // { ok, id?, error?, to, at }
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await req('/api/admin/mail-test');
+      setProbe(data);
+    } catch (e) {
+      setProbe({ ok: false, error: e.message || 'Failed to reach mail-test endpoint.' });
+    } finally {
+      setLoading(false);
+    }
+  }, [req]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const onSend = async () => {
+    const recipient = to.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
+      toast.error('Enter a valid recipient email.');
+      return;
+    }
+    setSending(true);
+    try {
+      const data = await req('/api/admin/mail-test', 'POST', { to: recipient });
+      setLastSend({ ...data, at: Date.now() });
+      if (data.ok) toast.success(`Test email queued at Resend (id: ${data.id?.slice(0, 8) || '…'}).`);
+      else toast.error(data.error || 'Resend rejected the test send.');
+    } catch (e) {
+      setLastSend({ ok: false, error: e.message, to: recipient, at: Date.now() });
+      toast.error(e.message || 'Mail-test endpoint failed.');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const ready = probe?.ready;
+  const headerVariant =
+    loading           ? { bg: 'bg-zinc-100',     ring: 'ring-zinc-200',     fg: 'text-zinc-600',     icon: Mail,           label: 'Checking…' }
+    : !probe?.ok      ? { bg: 'bg-red-50',       ring: 'ring-red-200',      fg: 'text-red-700',      icon: AlertTriangle,  label: 'Probe failed' }
+    : ready           ? { bg: 'bg-emerald-50',   ring: 'ring-emerald-200',  fg: 'text-emerald-700',  icon: CheckCircle2,   label: 'Mail ready' }
+                      : { bg: 'bg-amber-50',     ring: 'ring-amber-200',    fg: 'text-amber-700',    icon: AlertTriangle,  label: 'Needs attention' };
+  const HeaderIcon = headerVariant.icon;
+
+  return (
+    <div className={`mb-4 rounded-xl ring-1 ${headerVariant.ring} ${headerVariant.bg}`}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+      >
+        <div className="flex items-center gap-3">
+          <HeaderIcon className={`h-4 w-4 ${headerVariant.fg}`} />
+          <div>
+            <div className={`text-[11px] font-bold uppercase tracking-wider ${headerVariant.fg}`}>
+              Mail health · Resend
+            </div>
+            <div className="mt-0.5 text-[13px] font-semibold text-ink">
+              {loading
+                ? 'Probing Resend configuration…'
+                : !probe?.ok
+                  ? (probe?.error || 'Could not reach the mail-test endpoint.')
+                  : ready
+                    ? `Sending from ${probe.from_address}`
+                    : (probe.hints?.[0] || 'Configuration incomplete — expand for details.')}
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className={`hidden sm:inline rounded-md px-2 py-0.5 text-[11px] font-bold ${headerVariant.fg} bg-white/70`}>
+            {headerVariant.label}
+          </span>
+          {open
+            ? <ChevronUp className="h-4 w-4 text-zinc-500" />
+            : <ChevronDown className="h-4 w-4 text-zinc-500" />}
+        </div>
+      </button>
+
+      {open && (
+        <div className="space-y-4 border-t border-white/60 px-4 py-4">
+          {/* Diagnostic grid */}
+          {probe?.ok && (
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <Diag label="API key"        value={probe.resend_configured ? probe.api_key_prefix : '— missing —'} ok={probe.resend_configured} />
+              <Diag label="MAIL_FROM"      value={probe.mail_from} ok={!probe.sandbox} />
+              <Diag label="From domain"    value={probe.from_domain || '—'} ok={!probe.sandbox} />
+              <Diag
+                label="Domain status"
+                value={
+                  probe.domain_status?.restricted
+                    ? 'Send-only key (cannot list domains)'
+                    : (probe.domain_status?.domains || []).length
+                      ? (probe.domain_status.domains.find((d) => d.name === probe.from_domain)?.status || '— not found —')
+                      : (probe.domain_status?.error || 'No domains configured')
+                }
+                ok={
+                  probe.domain_status?.restricted
+                  || (probe.domain_status?.domains || []).find((d) => d.name === probe.from_domain)?.status === 'verified'
+                }
+              />
+            </div>
+          )}
+
+          {/* Hints */}
+          {!!probe?.hints?.length && (
+            <ul className="space-y-1.5 rounded-lg bg-white/80 p-3 ring-1 ring-zinc-200">
+              {probe.hints.map((h, i) => (
+                <li key={i} className="flex items-start gap-2 text-[12.5px] text-zinc-700">
+                  <span className="mt-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+                  {h}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {/* Send-test row */}
+          <div className="rounded-lg bg-white/80 p-3 ring-1 ring-zinc-200">
+            <div className="mb-2 flex items-center gap-2">
+              <Sparkles className="h-3.5 w-3.5 text-brand-600" />
+              <div className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">
+                Send test email
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="email"
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+                placeholder="recipient@example.com"
+                className="min-w-[220px] flex-1 rounded-lg ring-1 ring-zinc-200 bg-white px-3 py-2 text-sm placeholder:text-zinc-400 focus:ring-2 focus:ring-brand-600/40 focus:outline-none"
+              />
+              <button
+                onClick={onSend}
+                disabled={sending || !to}
+                className="btn-primary disabled:opacity-50 disabled:shadow-none"
+              >
+                {sending
+                  ? <><RefreshCcw className="h-3.5 w-3.5 animate-spin" /> Sending…</>
+                  : <><Send className="h-3.5 w-3.5" /> Send test</>}
+              </button>
+              <button onClick={load} className="btn-ghost" disabled={loading || sending}>
+                <RefreshCcw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Re-probe
+              </button>
+            </div>
+
+            {lastSend && (
+              <div className={`mt-3 rounded-md px-3 py-2 text-[12.5px] ring-1 ${
+                lastSend.ok
+                  ? 'bg-emerald-50 ring-emerald-200 text-emerald-800'
+                  : 'bg-red-50 ring-red-200 text-red-800'
+              }`}>
+                {lastSend.ok
+                  ? <>✓ Sent to <code>{lastSend.to}</code> · Resend id <code>{lastSend.id}</code></>
+                  : <>✕ Could not send to <code>{lastSend.to}</code> — {lastSend.error || 'unknown error'}</>}
+              </div>
+            )}
+
+            {probe?.sandbox && (
+              <div className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-[12px] text-amber-800 ring-1 ring-amber-200">
+                <strong>Heads-up:</strong> the sandbox sender only delivers to the email address tied to the Resend account.
+                Any other recipient will return <code>You can only send testing emails to your own email address</code>.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Diag({ label, value, ok }) {
+  return (
+    <div className="rounded-md bg-white/80 px-3 py-2 ring-1 ring-zinc-200">
+      <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">{label}</div>
+      <div className={`mt-0.5 truncate text-[12.5px] font-semibold ${ok ? 'text-emerald-700' : 'text-amber-700'}`}>
+        {String(value)}
+      </div>
     </div>
   );
 }

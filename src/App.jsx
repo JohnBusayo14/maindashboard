@@ -18,6 +18,9 @@ import Approvals    from './pages/Approvals.jsx';
 import Churches     from './pages/Churches.jsx';
 import Books        from './pages/Books.jsx';
 import BookEntries  from './pages/BookEntries.jsx';
+import VictoryMonth       from './pages/victory/VictoryMonth.jsx';
+import VictoryDayEditor   from './pages/victory/VictoryDayEditor.jsx';
+import VictoryVigilEditor from './pages/victory/VictoryVigilEditor.jsx';
 
 const Guard = ({ children }) => {
   const { isAuthed } = useAuth();
@@ -49,6 +52,10 @@ export default function App() {
         <Route path="churches"            element={<Churches />} />
         <Route path="books"               element={<Books />} />
         <Route path="books/:bookId/entries" element={<BookEntries />} />
+        <Route path="victory"             element={<VictoryMonth />} />
+        <Route path="victory/day/:dayId"  element={<VictoryDayEditor />} />
+        <Route path="victory/vigil/new"   element={<VictoryVigilEditor />} />
+        <Route path="victory/vigil/:vigilId" element={<VictoryVigilEditor />} />
         <Route path="leaderboard"  element={<Leaderboard />} />
         <Route path="banners"      element={<Banners />} />
         <Route path="bible-verses" element={<BibleVerses />} />
