@@ -18,6 +18,7 @@ import Approvals    from './pages/Approvals.jsx';
 import Churches     from './pages/Churches.jsx';
 import Books        from './pages/Books.jsx';
 import BookEntries  from './pages/BookEntries.jsx';
+import BookManage   from './pages/BookManage.jsx';
 import VictoryMonth       from './pages/victory/VictoryMonth.jsx';
 import VictoryDayEditor   from './pages/victory/VictoryDayEditor.jsx';
 import VictoryVigilEditor from './pages/victory/VictoryVigilEditor.jsx';
@@ -50,7 +51,8 @@ export default function App() {
         <Route path="pricing"      element={<Pricing />} />
         <Route path="approvals"    element={<Approvals />} />
         <Route path="churches"            element={<Churches />} />
-        <Route path="books"               element={<Books />} />
+        <Route path="books"                 element={<Books />} />
+        <Route path="books/:bookId/manage"  element={<BookManage />} />
         <Route path="books/:bookId/entries" element={<BookEntries />} />
         <Route path="victory"             element={<VictoryMonth />} />
         <Route path="victory/day/:dayId"  element={<VictoryDayEditor />} />

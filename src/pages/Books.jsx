@@ -13,12 +13,14 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, RefreshCcw, Library, Search, ChevronRight, Edit3 } from 'lucide-react';
+import { Plus, RefreshCcw, Library, Search, ChevronRight, Edit3, Sparkles, Flame } from 'lucide-react';
 import { useAuth } from '../auth.jsx';
 import { makeReq } from '../api.js';
 import { useToast } from '../components/Toast.jsx';
 import Modal from '../components/Modal.jsx';
 import Badge from '../components/Badge.jsx';
+import TranslationFields, { compactTranslations } from '../components/TranslationFields.jsx';
+import { VICTORY_BOOK_SLUG } from './victory/victoryData.js';
 
 const fmtDate = (d) =>
   d ? new Date(d).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
@@ -139,7 +141,8 @@ export default function Books() {
               </thead>
               <tbody className="divide-y divide-zinc-100">
                 {filtered.map((b) => {
-                  const isHome = b.route_screen === 'HomeScreen';
+                  const isHome    = b.route_screen === 'HomeScreen';
+                  const isVictory = b.slug === VICTORY_BOOK_SLUG;
                   return (
                     <tr key={b.id} className="hover:bg-zinc-25">
                       <td className="px-5 py-2.5">
@@ -164,7 +167,9 @@ export default function Books() {
                       <td className="px-5 py-2.5">
                         {isHome
                           ? <Badge variant="amber">Sunday School flow</Badge>
-                          : <Badge variant="blue">BookReader</Badge>}
+                          : isVictory
+                            ? <Badge variant="red">Victory Month editor</Badge>
+                            : <Badge variant="blue">BookReader</Badge>}
                       </td>
                       <td className="px-5 py-2.5 text-right tabular">
                         {isHome ? '—' : <Badge variant="blue">{b.entries_count ?? 0}</Badge>}
@@ -188,18 +193,41 @@ export default function Books() {
                           <button
                             onClick={() => setEditing(b)}
                             className="btn-soft text-xs"
-                            title="Edit metadata"
+                            title="Edit metadata in a modal"
                           >
-                            <Edit3 className="h-3.5 w-3.5" /> Edit
+                            <Edit3 className="h-3.5 w-3.5" /> Quick edit
                           </button>
                           {!isHome && (
-                            <button
-                              onClick={() => nav(`/books/${b.id}/entries`)}
-                              className="btn-primary text-xs"
-                              title="Manage entries"
-                            >
-                              Entries <ChevronRight className="h-3.5 w-3.5" />
-                            </button>
+                            isVictory ? (
+                              // Victory Month has its own dedicated editor at /victory
+                              // (cards-per-day + vigils + audit panel). Route every
+                              // "manage entries" intent there instead of the generic
+                              // table — that's the canonical surface for this book.
+                              <button
+                                onClick={() => nav('/victory')}
+                                className="btn-primary text-xs"
+                                title="Open the dedicated Victory Month editor"
+                              >
+                                <Flame className="h-3.5 w-3.5" /> Open Victory Month
+                              </button>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => nav(`/books/${b.id}/entries`)}
+                                  className="btn-ghost text-xs"
+                                  title="Plain entries table"
+                                >
+                                  Entries
+                                </button>
+                                <button
+                                  onClick={() => nav(`/books/${b.id}/manage`)}
+                                  className="btn-primary text-xs"
+                                  title="Full editor — intro, theme, search, vigils"
+                                >
+                                  <Sparkles className="h-3.5 w-3.5" /> Manage
+                                </button>
+                              </>
+                            )
                           )}
                         </div>
                       </td>
@@ -249,6 +277,9 @@ function BookFormModal({ initial, onClose, onSaved, req, toast }) {
     available:       initial?.available !== false,
     sort_order:      Number.isFinite(initial?.sort_order) ? initial.sort_order : 100,
     language:        initial?.language || 'en',
+    translations:    initial?.translations && typeof initial.translations === 'object'
+                       ? initial.translations
+                       : {},
   });
   const [saving, setSaving] = useState(false);
 
@@ -268,12 +299,13 @@ function BookFormModal({ initial, onClose, onSaved, req, toast }) {
     if (!form.slug.trim() && !isEdit) return toast.error('Slug is required.');
     setSaving(true);
     try {
+      const payload = { ...form, translations: compactTranslations(form.translations) };
       if (isEdit) {
-        const { slug, ...patch } = form;       // slug is immutable post-create
+        const { slug, ...patch } = payload;    // slug is immutable post-create
         await req(`/api/admin/books/${initial.id}`, 'PUT', patch);
         toast.success('Book updated.');
       } else {
-        await req('/api/admin/books', 'POST', { ...form, slug: slugify(form.slug) });
+        await req('/api/admin/books', 'POST', { ...payload, slug: slugify(payload.slug) });
         toast.success('Book created.');
       }
       onSaved();
@@ -353,6 +385,19 @@ function BookFormModal({ initial, onClose, onSaved, req, toast }) {
             <input type="checkbox" checked={form.available} onChange={set('available')} />
             <span>Available — visible to users in the mobile app library</span>
           </label>
+        </div>
+
+        <div className="sm:col-span-2">
+          <TranslationFields
+            fields={[
+              { key: 'title',       label: 'Title',       type: 'text' },
+              { key: 'subtitle',    label: 'Subtitle',    type: 'text' },
+              { key: 'description', label: 'Description', type: 'textarea', minH: 80 },
+            ]}
+            english={form}
+            value={form.translations}
+            onChange={(next) => setForm((f) => ({ ...f, translations: next }))}
+          />
         </div>
       </div>
     </Modal>

@@ -21,11 +21,13 @@ import { useAuth } from '../../auth.jsx';
 import { makeReq } from '../../api.js';
 import { useToast } from '../../components/Toast.jsx';
 import Badge from '../../components/Badge.jsx';
+import TranslationFields, { compactTranslations } from '../../components/TranslationFields.jsx';
 import { loadDays, loadDay, saveDay, loadMeta } from './victoryData.js';
 
 const BLANK = {
   day: 1, date: '', focus: '', scripture: '', message: '',
   prayer_points: [], intercession: '', published: true,
+  translations: {},
 };
 
 export default function VictoryDayEditor() {
@@ -82,6 +84,9 @@ export default function VictoryDayEditor() {
       prayer_points: Array.isArray(lite.prayer_points) ? lite.prayer_points : [],
       intercession:  lite.intercession || '',
       published:     lite.published !== false,
+      translations:  lite.translations && typeof lite.translations === 'object'
+                       ? lite.translations
+                       : {},
     });
     setDirty(false);
 
@@ -94,6 +99,9 @@ export default function VictoryDayEditor() {
         message:       full.message || '',
         prayer_points: Array.isArray(full.prayer_points) ? full.prayer_points : [],
         intercession:  full.intercession || '',
+        translations:  full.translations && typeof full.translations === 'object'
+                         ? full.translations
+                         : prev.translations,
       } : prev);
     }).catch(() => { /* keep the lightweight values */ });
   }, [allDays, dayNum, req]);
@@ -137,6 +145,7 @@ export default function VictoryDayEditor() {
       await saveDay(req, bookId, {
         ...form,
         prayer_points: form.prayer_points.filter((p) => p.trim()),
+        translations:  compactTranslations(form.translations),
       });
       setDirty(false);
       toast.success(`Day ${form.day} saved.`);
@@ -376,6 +385,32 @@ export default function VictoryDayEditor() {
               value={form.intercession}
               onChange={set('intercession')}
               placeholder="Father, let personal revival be my passion and portion…"
+            />
+          </section>
+
+          {/* Translations */}
+          <section className="card p-5">
+            <SectionHead
+              title="Translations"
+              hint="Add Yorùbá / Igbo / Hausa versions of any field. Members reading in those languages will see your translation; missing fields fall back to English."
+            />
+            <TranslationFields
+              fields={[
+                { key: 'focus',         label: 'Focus',         type: 'text' },
+                { key: 'scripture',     label: 'Scripture',     type: 'text' },
+                { key: 'message',       label: 'Message',       type: 'textarea', rows: 6 },
+                { key: 'prayer_points', label: 'Prayer points', type: 'array',    rows: 5 },
+                { key: 'intercession',  label: 'Special intercession', type: 'textarea', rows: 3 },
+              ]}
+              english={{
+                focus:         form.focus,
+                scripture:     form.scripture,
+                message:       form.message,
+                prayer_points: form.prayer_points,
+                intercession:  form.intercession,
+              }}
+              value={form.translations}
+              onChange={(next) => { setForm((f) => ({ ...f, translations: next })); setDirty(true); }}
             />
           </section>
 

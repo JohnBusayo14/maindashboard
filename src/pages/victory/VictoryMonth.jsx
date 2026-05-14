@@ -30,7 +30,7 @@ import Modal from '../../components/Modal.jsx';
 import Badge from '../../components/Badge.jsx';
 import {
   loadMeta, saveMeta, loadDays, saveDay, loadVigils, saveVigil,
-  stats, SEED_META, GROUP_ACCENT,
+  stats, SEED_META, GROUP_ACCENT, GROUP_OPTIONS,
 } from './victoryData.js';
 
 const TABS = [
@@ -338,7 +338,7 @@ export default function VictoryMonth() {
                 Group vigils
               </div>
               <div className="mt-0.5 text-sm text-zinc-500">
-                Standalone vigil guides for Family · Youth · Women · Men · General groups.
+                Standalone vigil guides — Family · Youth · Women · Men · General. Click a card to edit.
               </div>
             </div>
             <button onClick={() => nav('/victory/vigil/new')} className="btn-primary">
@@ -346,19 +346,57 @@ export default function VictoryMonth() {
             </button>
           </div>
 
-          {vigils.length === 0 ? (
-            <div className="card py-14 text-center">
-              <Users className="mx-auto h-7 w-7 text-zinc-300" />
-              <div className="mt-2 text-sm font-semibold text-zinc-600">No vigils yet.</div>
-              <div className="mt-1 text-xs text-zinc-400">Create one to get started.</div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {vigils.map((v) => (
-                <VigilCard key={v.id} v={v} onOpen={() => nav(`/victory/vigil/${v.id}`)} />
-              ))}
-            </div>
-          )}
+          {/* Render one section per group, even if empty — admins see all five
+              categories at a glance and can spot which ones need content. */}
+          <div className="space-y-7">
+            {GROUP_OPTIONS.map((group) => {
+              const inGroup = vigils.filter((v) => v.group === group);
+              const accent = GROUP_ACCENT[group] || '#6366F1';
+              return (
+                <section key={group}>
+                  <div className="mb-3 flex items-center gap-3">
+                    <span
+                      className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wider"
+                      style={{ backgroundColor: accent + '15', color: accent }}
+                    >
+                      <Users className="h-3 w-3" /> {group} vigil{group === 'Family' || inGroup.length !== 1 ? 's' : ''}
+                      <span className="rounded-md bg-white/70 px-1.5 py-0.5 text-[10px] font-bold tabular" style={{ color: accent }}>
+                        {inGroup.length}
+                      </span>
+                    </span>
+                    <div className="h-px flex-1" style={{ background: `linear-gradient(to right, ${accent}55, transparent)` }} />
+                  </div>
+
+                  {inGroup.length === 0 ? (
+                    <button
+                      onClick={() => nav('/victory/vigil/new')}
+                      className="group block w-full rounded-2xl border-2 border-dashed bg-zinc-25/40 py-8 text-center transition hover:bg-zinc-50"
+                      style={{ borderColor: accent + '55' }}
+                    >
+                      <div
+                        className="mx-auto inline-flex h-9 w-9 items-center justify-center rounded-full"
+                        style={{ backgroundColor: accent + '18', color: accent }}
+                      >
+                        <Plus className="h-4 w-4" />
+                      </div>
+                      <div className="mt-2 text-sm font-semibold text-ink">
+                        No {group.toLowerCase()} vigil yet
+                      </div>
+                      <div className="mt-0.5 text-xs text-zinc-500">
+                        Click to draft this vigil's focus, scripture and prayer points.
+                      </div>
+                    </button>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      {inGroup.map((v) => (
+                        <VigilCard key={v.id} v={v} onOpen={() => nav(`/victory/vigil/${v.id}`)} />
+                      ))}
+                    </div>
+                  )}
+                </section>
+              );
+            })}
+          </div>
         </div>
       )}
 

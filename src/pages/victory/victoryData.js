@@ -17,7 +17,10 @@
 //   POST   /api/admin/books/:slug/seed      → bulk upsert
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const VICTORY_BOOK_SLUG = 'victory-month-prayer';
+// Canonical slug for the Victory Month book. The actual DB row is
+// "Victory Month Prayer Bulletin 2026" — this constant must match its slug
+// so /victory and the mobile app read from the row that has the 37 entries.
+export const VICTORY_BOOK_SLUG = 'victory-month-2026';
 
 // ── Default metadata shown in the editor before the row loads ───────────────
 // Kept in sync with the bundled frontend data so the admin sees the right copy
@@ -65,6 +68,49 @@ const VIGIL_TYPES = new Set(Object.values(ENTRY_TYPE_BY_GROUP));
 // special_intercession / discussion_questions. We translate at the boundary
 // so the editors don't have to know.
 
+// Translations on the DB row store the BACKEND field names (focus,
+// scripture_text, inspirational_message, prayer_points, special_intercession,
+// discussion_questions). The admin UI uses the FRONTEND names (focus,
+// scripture, message, prayer_points, intercession, discussion). When mapping
+// to/from the row we remap the keys so the editor always sees the UI shape.
+const TRANSLATION_KEYS_DAY = {
+  focus:        'focus',
+  scripture:    'scripture_text',
+  message:      'inspirational_message',
+  prayer_points:'prayer_points',
+  intercession: 'special_intercession',
+};
+
+const translationsRowToUi = (rowTranslations, map) => {
+  const t = rowTranslations || {};
+  const out = {};
+  for (const [lang, block] of Object.entries(t)) {
+    const blk = {};
+    for (const [uiKey, rowKey] of Object.entries(map)) {
+      if (Object.prototype.hasOwnProperty.call(block, rowKey)) {
+        blk[uiKey] = block[rowKey];
+      }
+    }
+    if (Object.keys(blk).length) out[lang] = blk;
+  }
+  return out;
+};
+
+const translationsUiToRow = (uiTranslations, map) => {
+  const t = uiTranslations || {};
+  const out = {};
+  for (const [lang, block] of Object.entries(t)) {
+    const blk = {};
+    for (const [uiKey, rowKey] of Object.entries(map)) {
+      if (Object.prototype.hasOwnProperty.call(block, uiKey)) {
+        blk[rowKey] = block[uiKey];
+      }
+    }
+    if (Object.keys(blk).length) out[lang] = blk;
+  }
+  return out;
+};
+
 const rowToDay = (row) => ({
   day:           Number(row.entry_number),
   date:          row.entry_date ? String(row.entry_date).slice(0, 10) : '',
@@ -74,6 +120,7 @@ const rowToDay = (row) => ({
   prayer_points: Array.isArray(row.prayer_points) ? row.prayer_points : [],
   intercession:  row.special_intercession || '',
   published:     row.published !== false,
+  translations:  translationsRowToUi(row.translations, TRANSLATION_KEYS_DAY),
 });
 
 const dayToRow = (d) => ({
@@ -85,6 +132,7 @@ const dayToRow = (d) => ({
   inspirational_message: d.message || '',
   prayer_points:         Array.isArray(d.prayer_points) ? d.prayer_points : [],
   special_intercession:  d.intercession || '',
+  translations:          translationsUiToRow(d.translations, TRANSLATION_KEYS_DAY),
 });
 
 // Vigils don't have a natural numeric primary key in the admin UI; the admin
@@ -93,6 +141,15 @@ const dayToRow = (d) => ({
 const idForVigil = (group, n) => {
   const g = String(group || '').toLowerCase();
   return g === 'family' ? `family-${n}` : g;
+};
+
+// Vigils have an extra `discussion` array that days don't.
+const TRANSLATION_KEYS_VIGIL = {
+  focus:        'focus',
+  scripture:    'scripture_text',
+  message:      'inspirational_message',
+  prayer_points:'prayer_points',
+  discussion:   'discussion_questions',
 };
 
 const rowToVigil = (row) => {
@@ -109,6 +166,7 @@ const rowToVigil = (row) => {
     discussion:    Array.isArray(row.discussion_questions) ? row.discussion_questions : [],
     prayer_points: Array.isArray(row.prayer_points) ? row.prayer_points : [],
     published:     row.published !== false,
+    translations:  translationsRowToUi(row.translations, TRANSLATION_KEYS_VIGIL),
   };
 };
 
@@ -121,6 +179,7 @@ const vigilToRow = (v) => ({
   inspirational_message: v.message || '',
   prayer_points:         Array.isArray(v.prayer_points) ? v.prayer_points : [],
   discussion_questions:  Array.isArray(v.discussion) ? v.discussion : [],
+  translations:          translationsUiToRow(v.translations, TRANSLATION_KEYS_VIGIL),
 });
 
 // ── Public async helpers ────────────────────────────────────────────────────

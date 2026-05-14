@@ -17,6 +17,7 @@ import { useAuth } from '../../auth.jsx';
 import { makeReq } from '../../api.js';
 import { useToast } from '../../components/Toast.jsx';
 import Badge from '../../components/Badge.jsx';
+import TranslationFields, { compactTranslations } from '../../components/TranslationFields.jsx';
 import {
   loadVigils, loadVigil, saveVigil, deleteVigil, loadMeta,
   GROUP_OPTIONS, GROUP_ACCENT,
@@ -34,6 +35,7 @@ const BLANK = {
   discussion:    [],
   prayer_points: [],
   published:     true,
+  translations:  {},
 };
 
 export default function VictoryVigilEditor() {
@@ -85,6 +87,9 @@ export default function VictoryVigilEditor() {
       ...lite,
       discussion:    Array.isArray(lite.discussion) ? lite.discussion : [],
       prayer_points: Array.isArray(lite.prayer_points) ? lite.prayer_points : [],
+      translations:  lite.translations && typeof lite.translations === 'object'
+                       ? lite.translations
+                       : {},
     });
     setDirty(false);
 
@@ -95,6 +100,9 @@ export default function VictoryVigilEditor() {
           message:       full.message || '',
           discussion:    Array.isArray(full.discussion) ? full.discussion : [],
           prayer_points: Array.isArray(full.prayer_points) ? full.prayer_points : [],
+          translations:  full.translations && typeof full.translations === 'object'
+                           ? full.translations
+                           : prev.translations,
         } : prev);
       }).catch(() => { /* keep the lightweight values */ });
     }
@@ -152,6 +160,7 @@ export default function VictoryVigilEditor() {
       entry_number,
       discussion:    form.discussion.filter((d) => d.trim()),
       prayer_points: form.prayer_points.filter((p) => p.trim()),
+      translations:  compactTranslations(form.translations),
     };
     try {
       await saveVigil(req, bookId, payload);
@@ -336,6 +345,32 @@ export default function VictoryVigilEditor() {
                 ))}
               </div>
             )}
+          </section>
+
+          {/* Translations */}
+          <section className="card p-5">
+            <SectionHead
+              title="Translations"
+              hint="Add Yorùbá / Igbo / Hausa versions of any field. Members reading in those languages see your translation; missing fields fall back to English."
+            />
+            <TranslationFields
+              fields={[
+                { key: 'focus',         label: 'Focus',         type: 'text' },
+                { key: 'scripture',     label: 'Scripture',     type: 'text' },
+                { key: 'message',       label: 'Message',       type: 'textarea', rows: 6 },
+                { key: 'discussion',    label: 'Discussion questions', type: 'array', rows: 4 },
+                { key: 'prayer_points', label: 'Prayer points', type: 'array', rows: 5 },
+              ]}
+              english={{
+                focus:         form.focus,
+                scripture:     form.scripture,
+                message:       form.message,
+                discussion:    form.discussion,
+                prayer_points: form.prayer_points,
+              }}
+              value={form.translations}
+              onChange={(next) => { setForm((f) => ({ ...f, translations: next })); setDirty(true); }}
+            />
           </section>
 
           {/* Sticky save bar */}
