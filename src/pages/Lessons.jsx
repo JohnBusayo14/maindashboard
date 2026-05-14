@@ -5,6 +5,7 @@ import { makeReq } from '../api.js';
 import { useToast } from '../components/Toast.jsx';
 import Modal from '../components/Modal.jsx';
 import Badge from '../components/Badge.jsx';
+import HymnPicker from '../components/HymnPicker.jsx';
 import { CATEGORIES, CAT_PILL, LANGS } from '../constants.js';
 
 const safeArr = (v) => {
@@ -462,7 +463,16 @@ function LessonModal({ initial, units, activeCat, onClose, onSaved, req, toast }
             </div>
             <div className="sm:col-span-3">
               <label className="label">Suggested hymns</label>
-              <input className="input" value={hymns} onChange={(e) => setHymns(e.target.value)} placeholder="290, 480, 512" />
+              {/* Multi-select pulled from the Hymns submenu. Stored as the
+                  same comma-separated MHB numbers string the backend already
+                  expects, so the mobile app's existing parser works
+                  unchanged. */}
+              <HymnPicker
+                value={hymns}
+                onChange={setHymns}
+                req={req}
+                toast={toast}
+              />
             </div>
             <div className="sm:col-span-3">
               <label className="label">Devotional reading</label>
