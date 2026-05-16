@@ -1,13 +1,56 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { DollarSign, RefreshCcw, Save } from 'lucide-react';
+import { DollarSign, BookOpen, RefreshCcw, Save } from 'lucide-react';
 import { useAuth } from '../auth.jsx';
 import { makeReq } from '../api.js';
 import { useToast } from '../components/Toast.jsx';
 
+// Known plan metadata. Plan IDs that the backend returns but aren't in this
+// map still render via the generic fallback in metaFor() — so adding a new
+// book SKU on the server doesn't require touching the dashboard.
 const PLAN_META = {
-  single: { label: 'Single Category', tag: 'POPULAR',    accent: 'from-brand-50 to-white',   ring: 'ring-brand-100',   pill: 'text-brand-700  bg-brand-50',    sub: 'Access one age group of the learner’s choice.' },
-  all:    { label: 'All Categories',  tag: 'BEST VALUE', accent: 'from-violet-50 to-white',  ring: 'ring-violet-100',  pill: 'text-violet-700 bg-violet-50',   sub: 'Unlocks every age group at a single price.' },
+  single: { label: 'Single Category', tag: 'POPULAR',    accent: 'from-brand-50 to-white',   pill: 'text-brand-700  bg-brand-50',    sub: 'Access one age group of the learner’s choice.' },
+  all:    { label: 'All Categories',  tag: 'BEST VALUE', accent: 'from-violet-50 to-white',  pill: 'text-violet-700 bg-violet-50',   sub: 'Unlocks every age group at a single price.' },
+  book_victory_month_prayer: {
+    label: 'Victory Month Prayer Book',
+    tag:   'BOOK',
+    accent:'from-amber-50 to-white',
+    pill:  'text-amber-700 bg-amber-50',
+    sub:   'One-time purchase to unlock the 30 daily prayers and group vigils in the Victory Month Prayer book.',
+  },
 };
+
+// Fallback for unknown plan IDs (so a new book_* row on the server still
+// renders without code changes). Prettifies the id into a title — e.g.,
+// 'book_fasting_guide' → 'Book · Fasting Guide'.
+function metaFor(id) {
+  if (PLAN_META[id]) return PLAN_META[id];
+  const isBook = id?.startsWith('book_');
+  const pretty = (id || '')
+    .replace(/^book_/, '')
+    .split('_').filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+  return {
+    label: isBook ? pretty : id,
+    tag:   isBook ? 'BOOK' : 'PLAN',
+    accent:'from-zinc-50 to-white',
+    pill:  'text-zinc-700 bg-zinc-100',
+    sub:   isBook
+      ? 'One-time purchase to unlock this book in the mobile app.'
+      : 'Subscription plan.',
+  };
+}
+
+// Stable ordering: subscription tiers first, then book SKUs alphabetised so
+// the layout is predictable as new books are added.
+function sortPlans(ids) {
+  const TIER_ORDER = ['single', 'all'];
+  const tiers = ids.filter((id) => TIER_ORDER.includes(id))
+    .sort((a, b) => TIER_ORDER.indexOf(a) - TIER_ORDER.indexOf(b));
+  const books = ids.filter((id) => id.startsWith('book_')).sort();
+  const other = ids.filter((id) => !TIER_ORDER.includes(id) && !id.startsWith('book_')).sort();
+  return [...tiers, ...books, ...other];
+}
 
 export default function Pricing() {
   const { api, key } = useAuth();
@@ -54,8 +97,8 @@ export default function Pricing() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {['single', 'all'].map((id) => (
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {sortPlans(Object.keys(plans || {})).map((id) => (
           <PlanCard
             key={id}
             id={id}
@@ -66,36 +109,60 @@ export default function Pricing() {
             toast={toast}
           />
         ))}
+        {!loading && Object.keys(plans || {}).length === 0 && (
+          <div className="md:col-span-2 lg:col-span-3 rounded-lg border border-dashed border-zinc-200 p-8 text-center text-sm text-zinc-500">
+            No subscription plans found. The backend seeds the default tiers on first boot — try Refresh.
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
 function PlanCard({ id, plan, loading, onSaved, req, toast }) {
-  const meta = PLAN_META[id];
+  const meta = metaFor(id);
+  const isBook = id?.startsWith('book_');
   const [naira, setNaira] = useState('');
+  const [usd,   setUsd]   = useState('');
   const [days, setDays]   = useState('');
   const [saving, setSaving] = useState(false);
 
   // Sync local form when the plan loads
   useEffect(() => {
-    if (plan?.price_kobo != null) setNaira(String(Math.round(plan.price_kobo / 100)));
-    if (plan?.days != null)       setDays(String(plan.days));
-  }, [plan?.price_kobo, plan?.days]);
+    if (plan?.price_kobo      != null) setNaira(String(Math.round(plan.price_kobo / 100)));
+    if (plan?.price_usd_cents != null) setUsd(plan.price_usd_cents > 0 ? (plan.price_usd_cents / 100).toFixed(2) : '');
+    if (plan?.days != null)            setDays(String(plan.days));
+  }, [plan?.price_kobo, plan?.price_usd_cents, plan?.days]);
+
+  // Normalise the USD input — accept "5", "5.00", "5.5", and reject anything
+  // that wouldn't be representable as an integer number of cents.
+  const usdCents = usd === ''
+    ? 0
+    : Math.round(parseFloat(usd) * 100);
 
   const dirty =
     naira !== '' && days !== '' &&
-    (parseInt(naira, 10) * 100 !== plan.price_kobo || parseInt(days, 10) !== plan.days);
+    (parseInt(naira, 10) * 100 !== plan.price_kobo
+     || parseInt(days, 10) !== plan.days
+     || usdCents !== (plan.price_usd_cents || 0));
 
   const submit = async (e) => {
     e.preventDefault();
     const n = parseInt(naira, 10);
     const d = parseInt(days, 10);
-    if (!n || n < 100) return toast.error('Price must be at least ₦100.');
+    if (!n || n < 100) return toast.error('Naira price must be at least ₦100.');
     if (!d || d < 1)   return toast.error('Duration must be at least 1 day.');
+    if (usd !== '' && (!Number.isFinite(usdCents) || usdCents < 50)) {
+      return toast.error('USD price must be at least $0.50 (Stripe minimum) or left blank.');
+    }
     setSaving(true);
     try {
-      await req(`/api/admin/subscription/plans/${id}`, 'PUT', { price_kobo: n * 100, days: d });
+      await req(`/api/admin/subscription/plans/${id}`, 'PUT', {
+        price_kobo:      n * 100,
+        days:            d,
+        // Always send the USD value (0 means "no Stripe checkout for this plan")
+        price_usd_cents: usdCents,
+      });
       toast.success(`${meta.label} updated.`);
       onSaved();
     } catch (err) {
@@ -112,10 +179,13 @@ function PlanCard({ id, plan, loading, onSaved, req, toast }) {
           <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold tracking-wider ${meta.pill}`}>
             {meta.tag}
           </span>
-          <DollarSign className="h-4 w-4 text-zinc-400" />
+          {isBook
+            ? <BookOpen className="h-4 w-4 text-zinc-400" />
+            : <DollarSign className="h-4 w-4 text-zinc-400" />}
         </div>
         <h2 className="mt-3 text-lg font-bold tracking-tight text-ink">{meta.label}</h2>
         <p className="mt-1 text-sm text-zinc-500">{meta.sub}</p>
+        <p className="mt-1 text-[11px] font-mono text-zinc-400">{id}</p>
       </div>
 
       <div className="border-t border-zinc-100 bg-white p-5">
@@ -133,6 +203,7 @@ function PlanCard({ id, plan, loading, onSaved, req, toast }) {
                 value={naira}
                 onChange={(e) => setNaira(e.target.value)}
               />
+              <p className="mt-1 text-[10.5px] text-zinc-500">Paystack &amp; Flutterwave charge this amount.</p>
             </div>
             <div>
               <label className="label">Duration (days)</label>
@@ -143,6 +214,21 @@ function PlanCard({ id, plan, loading, onSaved, req, toast }) {
                 value={days}
                 onChange={(e) => setDays(e.target.value)}
               />
+            </div>
+            <div className="col-span-2">
+              <label className="label">Price ($) — Stripe checkout for international users</label>
+              <input
+                type="number"
+                min="0"
+                step="0.50"
+                className="input tabular"
+                placeholder="Leave blank to disable Stripe for this plan"
+                value={usd}
+                onChange={(e) => setUsd(e.target.value)}
+              />
+              <p className="mt-1 text-[10.5px] text-zinc-500">
+                Stripe minimum is $0.50. Set to 0 / blank to hide the Stripe option at checkout for this plan.
+              </p>
             </div>
             <div className="col-span-2">
               <button type="submit" className="btn-primary w-full" disabled={!dirty || saving}>

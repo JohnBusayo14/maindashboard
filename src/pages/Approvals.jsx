@@ -50,7 +50,15 @@ export default function Approvals() {
     if (!confirm(`Approve "${c.name}" and send the credentials email?`)) return;
     try {
       const d = await req(`/api/admin/church-applications/${c.id}/approve`, 'POST');
-      toast.success(`Approved ${d.church?.name || c.name}.`);
+      const name = d.church?.name || c.name;
+      if (d.mail?.ok) {
+        toast.success(`Approved ${name}. Confirmation email sent to ${c.admin_email}.`);
+      } else {
+        toast.error(
+          `Approved ${name}, but email FAILED to send: ${d.mail?.error || 'unknown reason'}. ` +
+          `Check the Mail Test panel (/api/admin/mail-test) to debug.`
+        );
+      }
       load();
     } catch (e) {
       toast.error(e.message || 'Approve failed.');
@@ -61,8 +69,14 @@ export default function Approvals() {
     const reason = prompt('Reason for rejection (optional, shown to the applicant on next login):', '');
     if (reason === null) return;
     try {
-      await req(`/api/admin/church-applications/${c.id}/reject`, 'POST', { reason });
-      toast.success(`Rejected ${c.name}.`);
+      const d = await req(`/api/admin/church-applications/${c.id}/reject`, 'POST', { reason });
+      if (d.mail?.ok) {
+        toast.success(`Rejected ${c.name}. Notification email sent.`);
+      } else {
+        toast.error(
+          `Rejected ${c.name}, but email FAILED to send: ${d.mail?.error || 'unknown reason'}.`
+        );
+      }
       load();
     } catch (e) {
       toast.error(e.message || 'Reject failed.');

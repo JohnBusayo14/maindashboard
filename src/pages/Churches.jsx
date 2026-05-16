@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Plus, Copy, Eye, RefreshCcw, Building2, Search } from 'lucide-react';
+import { Plus, Copy, Eye, RefreshCcw, Building2, Search, Pencil, Trash2 } from 'lucide-react';
 import { useAuth } from '../auth.jsx';
 import { makeReq } from '../api.js';
 import { useToast } from '../components/Toast.jsx';
@@ -19,6 +19,8 @@ export default function Churches() {
   const [q, setQ]             = useState('');
   const [creating, setCreating] = useState(false);
   const [reveal, setReveal]     = useState(null);   // { name, invite_code, admin_token }
+  const [editing, setEditing]   = useState(null);   // church row being edited
+  const [deleting, setDeleting] = useState(null);   // church row pending delete
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -134,6 +136,7 @@ export default function Churches() {
                   <th className="px-5 py-2.5 text-right">Teachers</th>
                   <th className="px-5 py-2.5 text-right">Classes</th>
                   <th className="px-5 py-2.5">Created</th>
+                  <th className="px-5 py-2.5 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100">
@@ -171,6 +174,24 @@ export default function Churches() {
                       <Badge variant="amber">{c.classes ?? 0}</Badge>
                     </td>
                     <td className="px-5 py-2.5 text-zinc-500 tabular">{fmtDate(c.created_at)}</td>
+                    <td className="px-5 py-2.5">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => setEditing(c)}
+                          className="rounded p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-ink"
+                          title="Edit church"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => setDeleting(c)}
+                          className="rounded p-1.5 text-zinc-500 hover:bg-rose-50 hover:text-rose-600"
+                          title="Delete church"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -198,6 +219,26 @@ export default function Churches() {
 
       {reveal && (
         <RevealModal reveal={reveal} onClose={() => setReveal(null)} copy={copy} />
+      )}
+
+      {editing && (
+        <EditChurchModal
+          church={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); load(); }}
+          req={req}
+          toast={toast}
+        />
+      )}
+
+      {deleting && (
+        <DeleteChurchModal
+          church={deleting}
+          onClose={() => setDeleting(null)}
+          onDeleted={() => { setDeleting(null); load(); }}
+          req={req}
+          toast={toast}
+        />
       )}
     </div>
   );
@@ -298,6 +339,167 @@ function RevealModal({ reveal, onClose, copy }) {
             </button>
           </div>
           <p className="mt-2 text-[11px] text-zinc-500">Treat this like a password — don't share publicly.</p>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function EditChurchModal({ church, onClose, onSaved, req, toast }) {
+  const [name, setName]         = useState(church.name || '');
+  const [location, setLocation] = useState(church.location || '');
+  const [email, setEmail]       = useState(church.admin_email || '');
+  const [saving, setSaving]     = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!name.trim())  return toast.error('Church name is required.');
+    if (!email.trim()) return toast.error('Admin email is required.');
+    setSaving(true);
+    try {
+      await req(`/api/admin/churches/${church.id}`, 'PUT', {
+        name:        name.trim(),
+        location:    location.trim() || null,
+        admin_email: email.trim().toLowerCase(),
+      });
+      toast.success(`Church updated: ${name.trim()}`);
+      onSaved();
+    } catch (err) {
+      toast.error(err.message || 'Update failed.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Edit church"
+      sub="Invite code and admin token are not editable here — they're managed separately."
+      size="md"
+      footer={
+        <>
+          <button onClick={onClose} className="btn-ghost">Cancel</button>
+          <button onClick={submit} disabled={saving} className="btn-primary">
+            {saving ? 'Saving…' : 'Save changes'}
+          </button>
+        </>
+      }
+    >
+      <form onSubmit={submit} className="flex flex-col gap-4">
+        <div>
+          <label className="label">Church name</label>
+          <input className="input" value={name} onChange={(e) => setName(e.target.value)} />
+        </div>
+        <div>
+          <label className="label">Location</label>
+          <input className="input" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Optional" />
+        </div>
+        <div>
+          <label className="label">Admin email</label>
+          <input
+            type="email"
+            className="input"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function DeleteChurchModal({ church, onClose, onDeleted, req, toast }) {
+  const [preview, setPreview] = useState(null);   // { teachers, classes, students }
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy]       = useState(false);
+  // Type-to-confirm gate. The user must type the church name exactly before
+  // the Delete button enables — kills muscle-memory double-clicks that wipe
+  // the wrong tenant.
+  const [confirmText, setConfirmText] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const data = await req(`/api/admin/churches/${church.id}`, 'DELETE');
+        if (!cancelled) setPreview(data?.preview || null);
+      } catch (e) {
+        if (!cancelled) toast.error(e.message || 'Failed to load impact preview.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    // Only run once per modal mount — church.id is stable inside this modal.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const confirmDelete = async () => {
+    if (confirmText.trim() !== church.name) {
+      return toast.error('Type the church name exactly to confirm.');
+    }
+    setBusy(true);
+    try {
+      await req(`/api/admin/churches/${church.id}?confirm=1`, 'DELETE');
+      toast.success(`Deleted ${church.name}.`);
+      onDeleted();
+    } catch (e) {
+      toast.error(e.message || 'Delete failed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`Delete ${church.name}?`}
+      sub="Destructive. The church row and its dependent data will be permanently removed."
+      size="md"
+      footer={
+        <>
+          <button onClick={onClose} className="btn-ghost">Cancel</button>
+          <button
+            onClick={confirmDelete}
+            disabled={busy || loading || confirmText.trim() !== church.name}
+            className="rounded-lg bg-rose-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
+          >
+            {busy ? 'Deleting…' : 'Delete church'}
+          </button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        {loading ? (
+          <div className="text-sm text-zinc-500">Loading impact preview…</div>
+        ) : preview ? (
+          <div className="rounded-lg bg-rose-50 ring-1 ring-rose-200 px-3 py-3">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-rose-800">What will happen</div>
+            <ul className="mt-2 flex flex-col gap-1 text-sm text-rose-900">
+              <li>• <strong>{preview.classes ?? 0}</strong> class(es) will be deleted (cascade)</li>
+              <li>• <strong>{preview.students ?? 0}</strong> student(s) and their attendance / marks will be deleted</li>
+              <li>• <strong>{preview.teachers ?? 0}</strong> teacher account(s) will be detached (kept, with church_id cleared)</li>
+            </ul>
+          </div>
+        ) : (
+          <div className="text-sm text-zinc-500">Couldn't load preview — delete will still work, but counts are unknown.</div>
+        )}
+
+        <div>
+          <label className="label">
+            Type <code className="rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-[12px]">{church.name}</code> to confirm
+          </label>
+          <input
+            className="input"
+            value={confirmText}
+            onChange={(e) => setConfirmText(e.target.value)}
+            placeholder={church.name}
+            autoFocus
+          />
         </div>
       </div>
     </Modal>
