@@ -24,8 +24,15 @@ export function AuthProvider({ children }) {
     setKey('');
   }, []);
 
+  // Anyone holding the maindashboard admin key is, by definition, the
+  // platform super-admin — the backend's churchAuth middleware tags requests
+  // bearing this key as `staff.role = 'super_admin'`. Expose the role here
+  // so the UI can surface a badge / gate future super-admin-only features
+  // without each page re-deriving it.
+  const role = key ? 'super_admin' : null;
+
   return (
-    <AuthCtx.Provider value={{ api, key, isAuthed: !!key, signIn, signOut }}>
+    <AuthCtx.Provider value={{ api, key, role, isAuthed: !!key, signIn, signOut }}>
       {children}
     </AuthCtx.Provider>
   );

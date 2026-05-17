@@ -37,7 +37,7 @@ const NAV = [
 const FLAT = NAV.flatMap(s => s.items);
 
 export default function Layout() {
-  const { signOut } = useAuth();
+  const { signOut, role } = useAuth();
   const { pathname } = useLocation();
   const [q, setQ] = useState('');
 
@@ -64,6 +64,11 @@ export default function Layout() {
             <div className="leading-tight">
               <div className="text-[13px] font-semibold text-ink">Gospelar</div>
               <div className="text-[11px] text-zinc-500">Admin Console</div>
+              {role === 'super_admin' && (
+                <span className="mt-1 inline-flex items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700">
+                  <ShieldCheck className="h-3 w-3" /> Super Admin
+                </span>
+              )}
             </div>
           </div>
           <button className="rounded-md p-1 hover:bg-zinc-150 text-zinc-500" title="Switch">
