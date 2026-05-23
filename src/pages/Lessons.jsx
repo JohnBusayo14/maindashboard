@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Plus, Pencil, Trash2, RefreshCcw, BookOpen, Search } from 'lucide-react';
+import { Plus, Pencil, Trash2, RefreshCcw, BookOpen, Search, ImagePlus, X } from 'lucide-react';
 import { useAuth } from '../auth.jsx';
 import { makeReq } from '../api.js';
 import { useToast } from '../components/Toast.jsx';
@@ -579,7 +579,7 @@ function LangPanel({ lang, content, onChange, mutateArr }) {
 }
 
 function PartsEditor({ items, upper, onChange }) {
-  const add  = () => onChange((arr) => [...arr, { part_topic: '', part_para1: '', part_para2: '' }]);
+  const add  = () => onChange((arr) => [...arr, { part_topic: '', part_para1: '', part_para2: '', part_image_url: '' }]);
   const rem  = (i) => onChange((arr) => arr.filter((_, idx) => idx !== i));
   const upd  = (i, k, v) => onChange((arr) => arr.map((p, idx) => (idx === i ? { ...p, [k]: v } : p)));
 
@@ -608,6 +608,10 @@ function PartsEditor({ items, upper, onChange }) {
                 </button>
               </div>
               <div className="flex flex-col gap-2">
+                <PartImageField
+                  value={p.part_image_url || ''}
+                  onChange={(v) => upd(i, 'part_image_url', v)}
+                />
                 <input
                   className="input"
                   value={p.part_topic || ''}
@@ -631,6 +635,67 @@ function PartsEditor({ items, upper, onChange }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// Per-part header image. Accepts either a remote URL or a file uploaded from
+// disk (read as a base64 data URL, capped at ~1.5MB to keep the lesson_part
+// JSONB row small). The mobile app's <Image source={{ uri }} /> handles both
+// `https://...` URLs and `data:image/...;base64,...` strings unchanged.
+function PartImageField({ value, onChange }) {
+  const onFile = (file) => {
+    if (!file) return;
+    if (file.size > 1.5 * 1024 * 1024) {
+      alert('Image too large — keep it under 1.5 MB or paste a URL instead.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => onChange(String(reader.result || ''));
+    reader.readAsDataURL(file);
+  };
+  const hasImage = !!value;
+
+  return (
+    <div className="rounded-md bg-white p-2.5 ring-1 ring-zinc-200">
+      <div className="mb-1.5 flex items-center justify-between">
+        <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">
+          Header image (optional)
+        </span>
+        {hasImage && (
+          <button
+            type="button"
+            onClick={() => onChange('')}
+            className="flex items-center gap-1 rounded p-1 text-[11px] font-semibold text-zinc-500 hover:bg-red-50 hover:text-red-600"
+            title="Remove image"
+          >
+            <X className="h-3 w-3" /> Remove
+          </button>
+        )}
+      </div>
+      {hasImage && (
+        <img
+          src={value}
+          alt=""
+          className="mb-2 h-28 w-full rounded-md object-cover ring-1 ring-zinc-200"
+        />
+      )}
+      <input
+        className="input mb-1.5"
+        value={value.startsWith('data:') ? '' : value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="https://… (or upload below)"
+      />
+      <label className="flex cursor-pointer items-center gap-2 rounded-md bg-zinc-50 px-2.5 py-1.5 text-[12px] font-semibold text-zinc-600 ring-1 ring-zinc-200 hover:bg-zinc-100">
+        <ImagePlus className="h-3.5 w-3.5" />
+        Upload from device
+        <input
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => onFile(e.target.files?.[0])}
+        />
+      </label>
     </div>
   );
 }
