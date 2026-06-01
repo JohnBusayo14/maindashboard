@@ -30,6 +30,37 @@ const CATEGORIES = [
   { id: 'all',          label: 'All categories' },
 ];
 
+// Pretty-print a book SKU slug for the per-book pills. Falls back to a
+// title-cased version of the slug so books added later still read cleanly
+// without a code change here.
+const BOOK_LABELS = {
+  all:                  'All books',
+  victory_month_prayer: 'Victory Month',
+  sunday_school:        'Sunday School',
+  teacher_manual:       'Teacher Manual',
+};
+const bookLabel = (slug) =>
+  BOOK_LABELS[slug] ||
+  String(slug || '')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+
+// Distinct pill colour per book so each subscription reads differently at a
+// glance. Unknown slugs cycle through a small palette by hash.
+const BOOK_PILL = {
+  all:                  'green',
+  victory_month_prayer: 'orange',
+  sunday_school:        'blue',
+  teacher_manual:       'teal',
+};
+const PILL_CYCLE = ['violet', 'teal', 'amber', 'blue', 'orange'];
+const bookPill = (slug) => {
+  if (BOOK_PILL[slug]) return BOOK_PILL[slug];
+  let h = 0;
+  for (const ch of String(slug)) h = (h + ch.charCodeAt(0)) % PILL_CYCLE.length;
+  return PILL_CYCLE[h];
+};
+
 export default function Subscribers() {
   const { api, key } = useAuth();
   const req   = useMemo(() => makeReq(api, key), [api, key]);
@@ -39,6 +70,7 @@ export default function Subscribers() {
   const [loading, setLoading] = useState(true);
   const [q, setQ]             = useState('');
   const [filter, setFilter]   = useState('all');     // all | active | expired
+  const [bookFilter, setBookFilter] = useState('all'); // all | trial | <book slug>
   const [granting, setGranting] = useState(false);
 
   const load = useCallback(async () => {
@@ -55,6 +87,21 @@ export default function Subscribers() {
 
   useEffect(() => { load(); }, [load]);
 
+  // subscribed_books arrives as an array (server parses it); be defensive in
+  // case an older payload sends the raw comma string.
+  const booksOf = (s) =>
+    Array.isArray(s.subscribed_books)
+      ? s.subscribed_books
+      : String(s.subscribed_books || '').split(',').map((x) => x.trim()).filter(Boolean);
+
+  // The set of distinct book SKUs present across all subscribers, for the
+  // per-book filter chips. Always offers 'all' + 'trial' shortcuts up front.
+  const bookOptions = useMemo(() => {
+    const set = new Set();
+    for (const s of rows) for (const b of booksOf(s)) set.add(b);
+    return Array.from(set).sort();
+  }, [rows]);
+
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
     return rows.filter((s) => {
@@ -63,9 +110,15 @@ export default function Subscribers() {
       if (filter === 'active'  && !active) return false;
       if (filter === 'expired' &&  active) return false;
       if (term && !s.email?.toLowerCase().includes(term)) return false;
+      // Per-book / trial filter
+      if (bookFilter === 'trial' && !s.is_trial) return false;
+      if (bookFilter !== 'all' && bookFilter !== 'trial') {
+        const books = booksOf(s);
+        if (!books.includes(bookFilter) && !books.includes('all')) return false;
+      }
       return true;
     });
-  }, [rows, q, filter]);
+  }, [rows, q, filter, bookFilter]);
 
   const onRevoke = async (email) => {
     if (!confirm(`Revoke access for ${email}?`)) return;
@@ -80,7 +133,8 @@ export default function Subscribers() {
 
   const stats = useMemo(() => {
     const active = rows.filter((s) => s.is_active && daysLeft(s.expiry_date) > 0).length;
-    return { total: rows.length, active, expired: rows.length - active };
+    const trial  = rows.filter((s) => s.is_trial && daysLeft(s.expiry_date) > 0).length;
+    return { total: rows.length, active, expired: rows.length - active, trial };
   }, [rows]);
 
   return (
@@ -105,9 +159,10 @@ export default function Subscribers() {
       </div>
 
       {/* Stats */}
-      <div className="mb-4 grid grid-cols-3 gap-3">
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="Total" value={stats.total} />
         <Stat label="Active" value={stats.active} accent="text-emerald-600" />
+        <Stat label="On trial" value={stats.trial} accent="text-amber-600" />
         <Stat label="Expired" value={stats.expired} accent="text-zinc-500" />
       </div>
 
@@ -138,6 +193,29 @@ export default function Subscribers() {
         <span className="ml-auto text-xs text-zinc-500">{filtered.length} of {rows.length}</span>
       </div>
 
+      {/* Per-book / trial filter chips — lets the admin slice subscribers by
+          which book they own, or just the free-trial cohort. */}
+      <div className="mb-4 flex flex-wrap items-center gap-1.5">
+        <span className="mr-1 text-[11px] font-bold uppercase tracking-wider text-zinc-400">Book</span>
+        {[
+          { id: 'all',   label: 'All' },
+          { id: 'trial', label: 'Free trial' },
+          ...bookOptions.map((b) => ({ id: b, label: bookLabel(b) })),
+        ].map((opt) => (
+          <button
+            key={opt.id}
+            onClick={() => setBookFilter(opt.id)}
+            className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 transition ${
+              bookFilter === opt.id
+                ? 'bg-brand-600 text-white ring-brand-600'
+                : 'bg-white text-zinc-600 ring-zinc-200 hover:text-ink'
+            }`}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+
       {/* Table */}
       <div className="card overflow-hidden">
         {loading ? (
@@ -157,6 +235,7 @@ export default function Subscribers() {
                   <th className="px-5 py-2.5">Email</th>
                   <th className="px-5 py-2.5">Category</th>
                   <th className="px-5 py-2.5">Plan</th>
+                  <th className="px-5 py-2.5">Books</th>
                   <th className="px-5 py-2.5">Status</th>
                   <th className="px-5 py-2.5">Expires</th>
                   <th className="px-5 py-2.5 text-right">Days</th>
@@ -177,6 +256,20 @@ export default function Subscribers() {
                       </td>
                       <td className="px-5 py-2.5">
                         <Badge variant="blue">{s.plan_type || 'single'}</Badge>
+                      </td>
+                      <td className="px-5 py-2.5">
+                        <div className="flex flex-wrap items-center gap-1">
+                          {s.is_trial && <Badge variant="amber">Trial</Badge>}
+                          {(() => {
+                            const books = booksOf(s);
+                            if (!books.length) {
+                              return s.is_trial ? null : <span className="text-xs text-zinc-400">—</span>;
+                            }
+                            return books.map((b) => (
+                              <Badge key={b} variant={bookPill(b)}>{bookLabel(b)}</Badge>
+                            ));
+                          })()}
+                        </div>
                       </td>
                       <td className="px-5 py-2.5">
                         {active ? <Badge variant="green">Active</Badge> : <Badge variant="red">Expired</Badge>}
