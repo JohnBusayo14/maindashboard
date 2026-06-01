@@ -61,23 +61,60 @@ const bookPill = (slug) => {
   return PILL_CYCLE[h];
 };
 
+// Sunday School is the one "product" not tracked in subscribed_books — it's
+// granted by a category plan (plan_type single/all), so we model it as a
+// pseudo-slug and detect it from plan_type. This lets it sit alongside the
+// real book SKUs in the same per-product filter + pill system.
+const SUNDAY_SCHOOL = 'sunday_school';
+
+// Every product (Sunday School + each owned book) a subscriber currently
+// holds. A user who bought Sunday School AND Victory Month returns BOTH, so
+// they surface under each product's filter independently. The 'all' wildcard
+// (free trial / all-access) expands to Sunday School + every catalog book.
+const productsOf = (s, catalogBooks = []) => {
+  const set = new Set();
+  const pt = String(s.plan_type || '');
+  // Category plans grant Sunday School; book_* plans do not.
+  if (pt === 'single' || pt === 'all') set.add(SUNDAY_SCHOOL);
+
+  const books = Array.isArray(s.subscribed_books)
+    ? s.subscribed_books
+    : String(s.subscribed_books || '').split(',').map((x) => x.trim()).filter(Boolean);
+
+  if (books.includes('all')) {
+    set.add(SUNDAY_SCHOOL);
+    for (const b of catalogBooks) set.add(b);
+  } else {
+    for (const b of books) set.add(b);
+  }
+  return Array.from(set);
+};
+
 export default function Subscribers() {
   const { api, key } = useAuth();
   const req   = useMemo(() => makeReq(api, key), [api, key]);
   const toast = useToast();
 
   const [rows, setRows]       = useState([]);
+  const [catalog, setCatalog] = useState([]);        // [{ slug, title }] from /api/books
   const [loading, setLoading] = useState(true);
   const [q, setQ]             = useState('');
   const [filter, setFilter]   = useState('all');     // all | active | expired
-  const [bookFilter, setBookFilter] = useState('all'); // all | trial | <book slug>
+  const [bookFilter, setBookFilter] = useState('all'); // all | trial | <product slug>
   const [granting, setGranting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await req('/api/subscribers');
+      // Pull subscribers + the book catalog in parallel. The catalog lets the
+      // 'all'-wildcard (trial) subscribers expand to every real book, and
+      // gives us product chips even for books nobody has bought yet.
+      const [data, books] = await Promise.all([
+        req('/api/subscribers'),
+        req('/api/books?include=unavailable').catch(() => []),
+      ]);
       setRows(data?.subscribers || []);
+      setCatalog(Array.isArray(books) ? books : []);
     } catch (e) {
       toast.error(e.message || 'Failed to load subscribers.');
     } finally {
@@ -87,20 +124,41 @@ export default function Subscribers() {
 
   useEffect(() => { load(); }, [load]);
 
-  // subscribed_books arrives as an array (server parses it); be defensive in
-  // case an older payload sends the raw comma string.
-  const booksOf = (s) =>
-    Array.isArray(s.subscribed_books)
-      ? s.subscribed_books
-      : String(s.subscribed_books || '').split(',').map((x) => x.trim()).filter(Boolean);
+  // Catalog book slugs (excluding Sunday School, which we model separately as
+  // a category product). Used to expand the 'all' wildcard.
+  const catalogBookSlugs = useMemo(
+    () => catalog.map((b) => String(b.slug || '').toLowerCase())
+                 .filter((s) => s && s !== SUNDAY_SCHOOL),
+    [catalog],
+  );
 
-  // The set of distinct book SKUs present across all subscribers, for the
-  // per-book filter chips. Always offers 'all' + 'trial' shortcuts up front.
-  const bookOptions = useMemo(() => {
-    const set = new Set();
-    for (const s of rows) for (const b of booksOf(s)) set.add(b);
-    return Array.from(set).sort();
-  }, [rows]);
+  // Merge titles from the live catalog into our label map so freshly-added
+  // books read with their real title, not just a slug-cased guess.
+  const labelFor = useCallback((slug) => {
+    if (slug === SUNDAY_SCHOOL) return 'Sunday School';
+    const hit = catalog.find((b) => String(b.slug).toLowerCase() === slug);
+    return hit?.title || bookLabel(slug);
+  }, [catalog]);
+
+  // Every distinct product across all subscribers, PLUS Sunday School and the
+  // full catalog, so each book gets its own filter chip even at zero sales.
+  const productOptions = useMemo(() => {
+    const set = new Set([SUNDAY_SCHOOL, ...catalogBookSlugs]);
+    for (const s of rows) for (const p of productsOf(s, catalogBookSlugs)) set.add(p);
+    set.delete('all'); // 'all' is the wildcard, never a product chip of its own
+    return Array.from(set);
+  }, [rows, catalogBookSlugs]);
+
+  // Per-product subscriber counts, so each chip shows how many hold it.
+  const productCounts = useMemo(() => {
+    const counts = {};
+    for (const s of rows) {
+      const active = s.is_active && daysLeft(s.expiry_date) > 0;
+      if (!active) continue;
+      for (const p of productsOf(s, catalogBookSlugs)) counts[p] = (counts[p] || 0) + 1;
+    }
+    return counts;
+  }, [rows, catalogBookSlugs]);
 
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -110,15 +168,16 @@ export default function Subscribers() {
       if (filter === 'active'  && !active) return false;
       if (filter === 'expired' &&  active) return false;
       if (term && !s.email?.toLowerCase().includes(term)) return false;
-      // Per-book / trial filter
+      // Per-product / trial filter — a multi-subscription user matches each
+      // product they hold, so they appear under both (e.g. Sunday School AND
+      // Victory Month) when filtering by either.
       if (bookFilter === 'trial' && !s.is_trial) return false;
       if (bookFilter !== 'all' && bookFilter !== 'trial') {
-        const books = booksOf(s);
-        if (!books.includes(bookFilter) && !books.includes('all')) return false;
+        if (!productsOf(s, catalogBookSlugs).includes(bookFilter)) return false;
       }
       return true;
     });
-  }, [rows, q, filter, bookFilter]);
+  }, [rows, q, filter, bookFilter, catalogBookSlugs]);
 
   const onRevoke = async (email) => {
     if (!confirm(`Revoke access for ${email}?`)) return;
@@ -193,25 +252,33 @@ export default function Subscribers() {
         <span className="ml-auto text-xs text-zinc-500">{filtered.length} of {rows.length}</span>
       </div>
 
-      {/* Per-book / trial filter chips — lets the admin slice subscribers by
-          which book they own, or just the free-trial cohort. */}
+      {/* Per-product / trial filter chips — one chip per product (Sunday School
+          + every book). A user who holds several products matches each chip,
+          so filtering by Victory Month and by Sunday School both list them. */}
       <div className="mb-4 flex flex-wrap items-center gap-1.5">
-        <span className="mr-1 text-[11px] font-bold uppercase tracking-wider text-zinc-400">Book</span>
+        <span className="mr-1 text-[11px] font-bold uppercase tracking-wider text-zinc-400">Product</span>
         {[
-          { id: 'all',   label: 'All' },
-          { id: 'trial', label: 'Free trial' },
-          ...bookOptions.map((b) => ({ id: b, label: bookLabel(b) })),
+          { id: 'all',   label: 'All', count: null },
+          { id: 'trial', label: 'Free trial', count: null },
+          ...productOptions.map((p) => ({ id: p, label: labelFor(p), count: productCounts[p] || 0 })),
         ].map((opt) => (
           <button
             key={opt.id}
             onClick={() => setBookFilter(opt.id)}
-            className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 transition ${
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ring-1 transition ${
               bookFilter === opt.id
                 ? 'bg-brand-600 text-white ring-brand-600'
                 : 'bg-white text-zinc-600 ring-zinc-200 hover:text-ink'
             }`}
           >
             {opt.label}
+            {opt.count != null && (
+              <span className={`rounded-full px-1.5 text-[10px] font-bold ${
+                bookFilter === opt.id ? 'bg-white/25 text-white' : 'bg-zinc-100 text-zinc-500'
+              }`}>
+                {opt.count}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -235,7 +302,7 @@ export default function Subscribers() {
                   <th className="px-5 py-2.5">Email</th>
                   <th className="px-5 py-2.5">Category</th>
                   <th className="px-5 py-2.5">Plan</th>
-                  <th className="px-5 py-2.5">Books</th>
+                  <th className="px-5 py-2.5">Products</th>
                   <th className="px-5 py-2.5">Status</th>
                   <th className="px-5 py-2.5">Expires</th>
                   <th className="px-5 py-2.5 text-right">Days</th>
@@ -261,12 +328,15 @@ export default function Subscribers() {
                         <div className="flex flex-wrap items-center gap-1">
                           {s.is_trial && <Badge variant="amber">Trial</Badge>}
                           {(() => {
-                            const books = booksOf(s);
-                            if (!books.length) {
+                            // One pill per product the subscriber holds — Sunday
+                            // School and each book read distinctly, so a user
+                            // with both shows both pills side by side.
+                            const products = productsOf(s, catalogBookSlugs);
+                            if (!products.length) {
                               return s.is_trial ? null : <span className="text-xs text-zinc-400">—</span>;
                             }
-                            return books.map((b) => (
-                              <Badge key={b} variant={bookPill(b)}>{bookLabel(b)}</Badge>
+                            return products.map((p) => (
+                              <Badge key={p} variant={bookPill(p)}>{labelFor(p)}</Badge>
                             ));
                           })()}
                         </div>
