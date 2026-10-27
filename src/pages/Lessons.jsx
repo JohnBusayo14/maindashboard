@@ -302,7 +302,7 @@ function LessonModal({ initial, units, activeCat, onClose, onSaved, req, toast }
         conclusion:      initial.lesson_conclusion || '',
         lesson_part:     safeArr(initial.lesson_part),
         devotional_days: safeArr(initial.devotional_days),
-        questions:       safeArr(initial.questions).map((q) => (typeof q === 'string' ? q : q?.text || '')),
+        questions:       safeArr(initial.questions).map(normQuestion),
       },
       yo: blankContent(),
       ig: blankContent(),
@@ -334,7 +334,7 @@ function LessonModal({ initial, units, activeCat, onClose, onSaved, req, toast }
                 conclusion:      tr[lang].lesson_conclusion || '',
                 lesson_part:     safeArr(tr[lang].lesson_part),
                 devotional_days: safeArr(tr[lang].devotional_days),
-                questions:       safeArr(tr[lang].questions).map((q) => (typeof q === 'string' ? q : q?.text || '')),
+                questions:       safeArr(tr[lang].questions).map(normQuestion),
               };
             }
           }
@@ -758,10 +758,23 @@ function DaysEditor({ items, upper, onChange }) {
   );
 }
 
+// Questions are stored as plain strings, or { text, answer } when a suggested
+// answer exists (the app reveals it on tap). Keep both shapes round-tripping.
+function normQuestion(q) {
+  if (typeof q === 'string') return q;
+  return q?.answer ? { text: q?.text || '', answer: q.answer } : q?.text || '';
+}
+
 function QuestionsEditor({ items, upper, onChange }) {
   const add = () => onChange((arr) => [...arr, '']);
   const rem = (i) => onChange((arr) => arr.filter((_, idx) => idx !== i));
-  const upd = (i, v) => onChange((arr) => arr.map((q, idx) => (idx === i ? v : q)));
+  const qText = (q) => (typeof q === 'string' ? q : q?.text || '');
+  const qAnswer = (q) => (typeof q === 'string' ? '' : q?.answer || '');
+  const upd = (i, field, v) => onChange((arr) => arr.map((q, idx) => {
+    if (idx !== i) return q;
+    const next = { text: qText(q), answer: qAnswer(q), [field]: v };
+    return next.answer ? next : next.text;
+  }));
 
   return (
     <div>
@@ -782,12 +795,20 @@ function QuestionsEditor({ items, upper, onChange }) {
               <span className="mt-2.5 w-6 shrink-0 text-right text-xs font-semibold text-zinc-400 tabular">
                 {i + 1}
               </span>
-              <textarea
-                className="input min-h-[55px]"
-                value={typeof q === 'string' ? q : q?.text || ''}
-                onChange={(e) => upd(i, e.target.value)}
-                placeholder="Discussion question…"
-              />
+              <div className="flex flex-1 flex-col gap-1.5">
+                <textarea
+                  className="input min-h-[55px]"
+                  value={qText(q)}
+                  onChange={(e) => upd(i, 'text', e.target.value)}
+                  placeholder="Discussion question…"
+                />
+                <textarea
+                  className="input min-h-[40px] text-[12px]"
+                  value={qAnswer(q)}
+                  onChange={(e) => upd(i, 'answer', e.target.value)}
+                  placeholder="Suggested answer (optional, shown on tap in the app)…"
+                />
+              </div>
               <button
                 type="button"
                 onClick={() => rem(i)}
