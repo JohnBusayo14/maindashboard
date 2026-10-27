@@ -5,10 +5,17 @@ const AuthCtx = createContext(null);
 const API_KEY = 'gofamint_admin_api_url';
 const KEY_KEY = 'gofamint_admin_key';
 
-const DEFAULT_API = import.meta.env.VITE_API_URL || 'https://api.gospelar.com';
+const DEFAULT_API = import.meta.env.VITE_API_URL || 'https://api2.gospelar.com';
+
+// Sessions saved before the host moved still hold the old URL in localStorage.
+const RETIRED_API_HOSTS = ['https://api.gospelar.com'];
+const storedApi = () => {
+  const v = (localStorage.getItem(API_KEY) || '').replace(/\/$/, '');
+  return v && !RETIRED_API_HOSTS.includes(v) ? v : '';
+};
 
 export function AuthProvider({ children }) {
-  const [api, setApi] = useState(() => localStorage.getItem(API_KEY) || DEFAULT_API);
+  const [api, setApi] = useState(() => storedApi() || DEFAULT_API);
   const [key, setKey] = useState(() => localStorage.getItem(KEY_KEY) || '');
 
   const signIn = useCallback((apiUrl, adminKey) => {
