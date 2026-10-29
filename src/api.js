@@ -9,6 +9,7 @@ export async function apiRequest(api, key, path, method = 'GET', body = null) {
   if (!res.ok) {
     const err = new Error(data.error || data.message || `HTTP ${res.status}`);
     err.status = res.status;
+    if (data.fields) err.fields = data.fields;   // per-field validation messages
     throw err;
   }
   return data;
