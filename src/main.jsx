@@ -1,3 +1,5 @@
+// Must stay the first import: routes API calls across api / api2.gospelar.com.
+import './apiFailover.js';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
