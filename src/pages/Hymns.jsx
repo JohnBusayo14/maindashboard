@@ -123,6 +123,7 @@ export default function Hymns() {
                   <th className="px-5 py-2.5">Author</th>
                   <th className="px-5 py-2.5 text-center">Verses</th>
                   <th className="px-5 py-2.5 text-center">Chorus</th>
+                  <th className="px-5 py-2.5">Languages</th>
                   <th className="px-5 py-2.5 w-24"></th>
                 </tr>
               </thead>
@@ -135,6 +136,11 @@ export default function Hymns() {
                     <td className="px-5 py-2.5 text-center text-zinc-700">{h.verse_count ?? '—'}</td>
                     <td className="px-5 py-2.5 text-center">
                       {h.has_chorus ? <Badge variant="green">Yes</Badge> : <span className="text-zinc-400">—</span>}
+                    </td>
+                    <td className="px-5 py-2.5">
+                      {h.langs?.length
+                        ? <div className="flex gap-1">{h.langs.map((l) => <Badge key={l}>{l.toUpperCase()}</Badge>)}</div>
+                        : <span className="text-zinc-400">—</span>}
                     </td>
                     <td className="px-5 py-2.5">
                       <div className="flex items-center justify-end gap-1">
@@ -175,8 +181,16 @@ export default function Hymns() {
   );
 }
 
+const LANGS = [
+  { code: 'en', label: 'English' },
+  { code: 'yo', label: 'Yorùbá' },
+  { code: 'ig', label: 'Igbo' },
+  { code: 'ha', label: 'Hausa' },
+];
+
 function HymnModal({ initial, onClose, onSaved, req, toast }) {
   const isEdit = !!initial.number;
+  const [tab, setTab] = useState('en');
   const [number, setNumber]   = useState(initial.number || '');
   const [title, setTitle]     = useState(initial.title || '');
   const [author, setAuthor]   = useState(initial.author || '');
@@ -216,6 +230,36 @@ function HymnModal({ initial, onClose, onSaved, req, toast }) {
     }
   };
 
+  const tabs = isEdit && (
+    <div className="mb-4 flex gap-1 border-b border-zinc-100">
+      {LANGS.map((l) => (
+        <button
+          key={l.code}
+          type="button"
+          onClick={() => setTab(l.code)}
+          className={`-mb-px border-b-2 px-3 py-2 text-sm font-semibold ${tab === l.code ? 'border-brand-600 text-ink' : 'border-transparent text-zinc-500 hover:text-ink'}`}
+        >
+          {l.label}
+        </button>
+      ))}
+    </div>
+  );
+
+  if (tab !== 'en') {
+    return (
+      <TranslationModal
+        key={tab}
+        lang={tab}
+        langLabel={LANGS.find((l) => l.code === tab).label}
+        english={initial}
+        tabs={tabs}
+        onClose={onClose}
+        req={req}
+        toast={toast}
+      />
+    );
+  }
+
   return (
     <Modal
       open
@@ -232,6 +276,7 @@ function HymnModal({ initial, onClose, onSaved, req, toast }) {
         </>
       }
     >
+      {tabs}
       <form onSubmit={submit} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label className="label">MHB number</label>
@@ -299,6 +344,167 @@ function HymnModal({ initial, onClose, onSaved, req, toast }) {
           </div>
         </div>
       </form>
+    </Modal>
+  );
+}
+
+// Yorùbá / Igbo / Hausa version of one hymn. "Hymnal" marks the sung text
+// from a printed hymnal (name it in Source); "Translation" is meaning-only and
+// the app labels it so. The English is shown under each field for reference.
+function TranslationModal({ lang, langLabel, english, tabs, onClose, req, toast }) {
+  const num = english.number;
+  const enVerses = english.verses || [];
+  const [loading, setLoading]     = useState(true);
+  const [exists, setExists]       = useState(false);
+  const [title, setTitle]         = useState('');
+  const [chorus, setChorus]       = useState('');
+  const [verses, setVerses]       = useState(enVerses.length ? enVerses.map(() => '') : ['']);
+  const [source, setSource]       = useState('translation');
+  const [sourceRef, setSourceRef] = useState('');
+  const [saving, setSaving]       = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    req(`/api/admin/hymns/${num}/translations`)
+      .then((rows) => {
+        if (cancelled) return;
+        const t = (Array.isArray(rows) ? rows : []).find((r) => r.lang === lang);
+        if (!t) return;
+        setExists(true);
+        setTitle(t.title || '');
+        setChorus(t.chorus || '');
+        if (t.verses?.length) setVerses(t.verses);
+        setSource(t.source || 'translation');
+        setSourceRef(t.source_ref || '');
+      })
+      .catch((e) => toast.error(e.message || 'Could not load translation.'))
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [num, lang, req, toast]);
+
+  const save = async () => {
+    if (!title.trim()) return toast.error('Title is required.');
+    const cleanVerses = verses.map((v) => v.trim()).filter(Boolean);
+    if (!cleanVerses.length) return toast.error('At least one verse is required.');
+    setSaving(true);
+    try {
+      await req(`/api/admin/hymns/${num}/translations/${lang}`, 'PUT', {
+        title: title.trim(),
+        chorus: chorus.trim() || null,
+        verses: cleanVerses,
+        source,
+        source_ref: sourceRef.trim() || null,
+      });
+      setExists(true);
+      toast.success(`MHB #${num} (${langLabel}) saved.`);
+    } catch (err) {
+      toast.error(err.message || 'Save failed.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const remove = async () => {
+    if (!confirm(`Delete the ${langLabel} version of MHB #${num}? The app will show English instead.`)) return;
+    try {
+      await req(`/api/admin/hymns/${num}/translations/${lang}`, 'DELETE');
+      toast.success(`${langLabel} version deleted.`);
+      onClose();
+    } catch (err) {
+      toast.error(err.message || 'Delete failed.');
+    }
+  };
+
+  const enText = (v) => (typeof v === 'string' ? v : v?.text || '');
+  const reference = (text) =>
+    text ? <p className="mt-1 whitespace-pre-line text-xs text-zinc-400">{text}</p> : null;
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`Edit MHB #${num} — ${langLabel}`}
+      sub={exists
+        ? 'Readers who choose this language see this version.'
+        : 'No version yet — readers see English until one is saved.'}
+      size="lg"
+      footer={
+        <>
+          {exists && (
+            <button onClick={remove} className="btn-ghost mr-auto text-red-600">Delete {langLabel}</button>
+          )}
+          <button onClick={onClose} className="btn-ghost">Close</button>
+          <button onClick={save} disabled={saving || loading} className="btn-primary">
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        </>
+      }
+    >
+      {tabs}
+      {loading ? <Skeleton lines={6} /> : (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label className="label">Kind</label>
+            <select className="input" value={source} onChange={(e) => setSource(e.target.value)}>
+              <option value="translation">Translation (for reading)</option>
+              <option value="hymnal">Hymnal (sung version)</option>
+            </select>
+          </div>
+          <div>
+            <label className="label">Source {source === 'hymnal' ? '' : '(optional)'}</label>
+            <input
+              className="input"
+              value={sourceRef}
+              onChange={(e) => setSourceRef(e.target.value)}
+              placeholder="e.g. Ìwé Orin Mímọ́ No. 45"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="label">Title</label>
+            <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} />
+            {reference(english.title)}
+          </div>
+          <div className="sm:col-span-2">
+            <label className="label">Chorus (optional)</label>
+            <textarea className="input min-h-[70px]" value={chorus} onChange={(e) => setChorus(e.target.value)} />
+            {reference(english.chorus)}
+          </div>
+          <div className="sm:col-span-2">
+            <div className="mb-2 flex items-center justify-between">
+              <label className="label !mb-0">Verses</label>
+              <button type="button" onClick={() => setVerses((p) => [...p, ''])} className="btn-soft text-xs">
+                <Plus className="h-3.5 w-3.5" /> Add verse
+              </button>
+            </div>
+            <div className="flex flex-col gap-3">
+              {verses.map((v, i) => (
+                <div key={i} className="flex items-start gap-2">
+                  <span className="mt-2.5 w-6 shrink-0 text-right text-xs font-semibold text-zinc-400 tabular">
+                    {i + 1}
+                  </span>
+                  <div className="flex-1">
+                    <textarea
+                      className="input min-h-[80px]"
+                      value={v}
+                      onChange={(e) => setVerses((p) => p.map((x, idx) => (idx === i ? e.target.value : x)))}
+                    />
+                    {reference(enText(enVerses[i]))}
+                  </div>
+                  {verses.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => setVerses((p) => p.filter((_, idx) => idx !== i))}
+                      className="mt-1 rounded-md p-1.5 text-zinc-500 hover:bg-red-50 hover:text-red-600"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </Modal>
   );
 }
