@@ -6,6 +6,7 @@ import { useToast } from '../components/Toast.jsx';
 import Modal from '../components/Modal.jsx';
 import Badge from '../components/Badge.jsx';
 import HymnPicker from '../components/HymnPicker.jsx';
+import RichTextarea from '../components/RichTextarea.jsx';
 import { CATEGORIES, CAT_PILL, LANGS } from '../constants.js';
 
 const safeArr = (v) => {
@@ -451,11 +452,11 @@ function LessonModal({ initial, units, activeCat, onClose, onSaved, req, toast }
 
             <div className="sm:col-span-6">
               <label className="label">Title (EN)</label>
-              <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} />
+              <RichTextarea single value={title} onChange={setTitle} />
             </div>
             <div className="sm:col-span-6">
               <label className="label">Topic / subtitle (EN)</label>
-              <input className="input" value={topic} onChange={(e) => setTopic(e.target.value)} />
+              <RichTextarea single value={topic} onChange={setTopic} />
             </div>
             <div className="sm:col-span-3">
               <label className="label">Quarter theme</label>
@@ -529,31 +530,31 @@ function LessonModal({ initial, units, activeCat, onClose, onSaved, req, toast }
 // Per-language content panel — text fields + 3 nested array editors
 // ─────────────────────────────────────────────────────────────────────────────
 function LangPanel({ lang, content, onChange, mutateArr }) {
-  const set = (k) => (e) => onChange(k, e.target.value);
+  const set = (k) => (v) => onChange(k, v);
   const upper = lang.toUpperCase();
 
   return (
     <div className="flex flex-col gap-4">
       <div>
         <label className="label">Memory verse ({upper})</label>
-        <textarea
-          className="input min-h-[60px]"
+        <RichTextarea
+          className="min-h-[60px]"
           value={content.memory_verse}
           onChange={set('memory_verse')}
         />
       </div>
       <div>
         <label className="label">Lesson background ({upper})</label>
-        <textarea
-          className="input min-h-[110px]"
+        <RichTextarea
+          className="min-h-[110px]"
           value={content.background}
           onChange={set('background')}
         />
       </div>
       <div>
         <label className="label">Conclusion ({upper})</label>
-        <textarea
-          className="input min-h-[80px]"
+        <RichTextarea
+          className="min-h-[80px]"
           value={content.conclusion}
           onChange={set('conclusion')}
         />
@@ -612,22 +613,22 @@ function PartsEditor({ items, upper, onChange }) {
                   value={p.part_image_url || ''}
                   onChange={(v) => upd(i, 'part_image_url', v)}
                 />
-                <input
-                  className="input"
+                <RichTextarea
+                  single
                   value={p.part_topic || ''}
-                  onChange={(e) => upd(i, 'part_topic', e.target.value)}
+                  onChange={(v) => upd(i, 'part_topic', v)}
                   placeholder="Part topic"
                 />
-                <textarea
-                  className="input min-h-[80px]"
+                <RichTextarea
+                  className="min-h-[80px]"
                   value={p.part_para1 || ''}
-                  onChange={(e) => upd(i, 'part_para1', e.target.value)}
+                  onChange={(v) => upd(i, 'part_para1', v)}
                   placeholder="Paragraph 1"
                 />
-                <textarea
-                  className="input min-h-[60px]"
+                <RichTextarea
+                  className="min-h-[60px]"
                   value={p.part_para2 || ''}
-                  onChange={(e) => upd(i, 'part_para2', e.target.value)}
+                  onChange={(v) => upd(i, 'part_para2', v)}
                   placeholder="Paragraph 2 (optional)"
                 />
               </div>
@@ -737,10 +738,10 @@ function DaysEditor({ items, upper, onChange }) {
                   onChange={(e) => upd(i, 'day', e.target.value)}
                   placeholder="Label"
                 />
-                <input
-                  className="input"
+                <RichTextarea
+                  single
                   value={d.title || ''}
-                  onChange={(e) => upd(i, 'title', e.target.value)}
+                  onChange={(v) => upd(i, 'title', v)}
                   placeholder="Day title"
                 />
                 <input
@@ -796,16 +797,16 @@ function QuestionsEditor({ items, upper, onChange }) {
                 {i + 1}
               </span>
               <div className="flex flex-1 flex-col gap-1.5">
-                <textarea
-                  className="input min-h-[55px]"
+                <RichTextarea
+                  className="min-h-[55px]"
                   value={qText(q)}
-                  onChange={(e) => upd(i, 'text', e.target.value)}
+                  onChange={(v) => upd(i, 'text', v)}
                   placeholder="Discussion question…"
                 />
-                <textarea
-                  className="input min-h-[40px] text-[12px]"
+                <RichTextarea
+                  className="min-h-[40px] text-[12px]"
                   value={qAnswer(q)}
-                  onChange={(e) => upd(i, 'answer', e.target.value)}
+                  onChange={(v) => upd(i, 'answer', v)}
                   placeholder="Suggested answer (optional, shown on tap in the app)…"
                 />
               </div>
