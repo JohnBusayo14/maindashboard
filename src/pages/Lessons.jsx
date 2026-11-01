@@ -394,7 +394,7 @@ function LessonModal({ initial, units, activeCat, onClose, onSaved, req, toast }
       onClose={onClose}
       title={isEdit ? `Edit lesson #${initial.lesson_number ?? '?'}` : 'New lesson'}
       sub="Header info on top, then four language tabs for the actual lesson content."
-      size="xl"
+      size="2xl"
       footer={
         <>
           <button onClick={onClose} className="btn-ghost">Cancel</button>
@@ -538,7 +538,7 @@ function LangPanel({ lang, content, onChange, mutateArr }) {
       <div>
         <label className="label">Memory verse ({upper})</label>
         <RichTextarea
-          className="min-h-[60px]"
+          className="min-h-[100px]"
           value={content.memory_verse}
           onChange={set('memory_verse')}
         />
@@ -546,7 +546,7 @@ function LangPanel({ lang, content, onChange, mutateArr }) {
       <div>
         <label className="label">Lesson background ({upper})</label>
         <RichTextarea
-          className="min-h-[110px]"
+          className="min-h-[240px]"
           value={content.background}
           onChange={set('background')}
         />
@@ -554,7 +554,7 @@ function LangPanel({ lang, content, onChange, mutateArr }) {
       <div>
         <label className="label">Conclusion ({upper})</label>
         <RichTextarea
-          className="min-h-[80px]"
+          className="min-h-[180px]"
           value={content.conclusion}
           onChange={set('conclusion')}
         />
@@ -620,13 +620,13 @@ function PartsEditor({ items, upper, onChange }) {
                   placeholder="Part topic"
                 />
                 <RichTextarea
-                  className="min-h-[80px]"
+                  className="min-h-[220px]"
                   value={p.part_para1 || ''}
                   onChange={(v) => upd(i, 'part_para1', v)}
                   placeholder="Paragraph 1"
                 />
                 <RichTextarea
-                  className="min-h-[60px]"
+                  className="min-h-[160px]"
                   value={p.part_para2 || ''}
                   onChange={(v) => upd(i, 'part_para2', v)}
                   placeholder="Paragraph 2 (optional)"
@@ -798,13 +798,13 @@ function QuestionsEditor({ items, upper, onChange }) {
               </span>
               <div className="flex flex-1 flex-col gap-1.5">
                 <RichTextarea
-                  className="min-h-[55px]"
+                  className="min-h-[90px]"
                   value={qText(q)}
                   onChange={(v) => upd(i, 'text', v)}
                   placeholder="Discussion question…"
                 />
                 <RichTextarea
-                  className="min-h-[40px] text-[12px]"
+                  className="min-h-[80px] text-[13px]"
                   value={qAnswer(q)}
                   onChange={(v) => upd(i, 'answer', v)}
                   placeholder="Suggested answer (optional, shown on tap in the app)…"

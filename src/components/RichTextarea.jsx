@@ -12,7 +12,7 @@
 //   <RichTextarea single value={v} onChange={…} />   // one-line input, case tools only
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { Bold, Italic, Underline, List, ListOrdered, RemoveFormatting, Eye, EyeOff } from 'lucide-react';
 
 const FORMAT_PATTERN =
@@ -52,6 +52,15 @@ export default function RichTextarea({ value, onChange, single = false, classNam
   const ref = useRef(null);
   const [preview, setPreview] = useState(false);
   const text = value || '';
+
+  // Grow the box with its text (up to most of the screen) so long paragraphs
+  // are visible without scrolling inside the box.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (single || !el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight + 2, window.innerHeight * 0.7)}px`;
+  }, [text, single, preview]);
 
   // Replace text[start,end) and then select [selStart, selEnd).
   const replace = (start, end, insert, selStart, selEnd) => {
@@ -200,7 +209,7 @@ export default function RichTextarea({ value, onChange, single = false, classNam
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={onKeyDown}
           placeholder={placeholder}
-          className={`block w-full resize-y rounded-b-lg border-0 bg-transparent px-3 py-2 text-sm text-ink placeholder:text-zinc-400 focus:outline-none focus:ring-0 ${className}`}
+          className={`block w-full resize-y rounded-b-lg border-0 bg-transparent px-3 py-2 text-sm leading-relaxed text-ink placeholder:text-zinc-400 focus:outline-none focus:ring-0 ${className}`}
           {...rest}
         />
       )}
