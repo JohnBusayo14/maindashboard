@@ -751,6 +751,32 @@ function DaysEditor({ items, upper, onChange }) {
                   placeholder="Scripture (e.g. Phlm 1:1–3)"
                 />
               </div>
+              <div className="mt-2 flex flex-col gap-2">
+                <RichTextarea
+                  className="min-h-[120px]"
+                  value={d.text || ''}
+                  onChange={(v) => upd(i, 'text', v)}
+                  placeholder="Devotional message"
+                />
+                <RichTextarea
+                  className="min-h-[50px]"
+                  value={d.emphasis || ''}
+                  onChange={(v) => upd(i, 'emphasis', v)}
+                  placeholder="Point of emphasis"
+                />
+                <RichTextarea
+                  className="min-h-[50px]"
+                  value={d.prayer || ''}
+                  onChange={(v) => upd(i, 'prayer', v)}
+                  placeholder="Prayer point"
+                />
+                <input
+                  className="input"
+                  value={d.bible_reading || ''}
+                  onChange={(e) => upd(i, 'bible_reading', e.target.value)}
+                  placeholder="Bible in a year (e.g. Morning: Mk. 16; Evening: Lev. 13-14)"
+                />
+              </div>
             </div>
           ))}
         </div>
