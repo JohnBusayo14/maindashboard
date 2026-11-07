@@ -11,6 +11,7 @@ import BibleVerses  from './pages/BibleVerses.jsx';
 import Banners      from './pages/Banners.jsx';
 import Pricing      from './pages/Pricing.jsx';
 import Subscribers  from './pages/Subscribers.jsx';
+import Accounts     from './pages/Accounts.jsx';
 import QuarterInfo  from './pages/QuarterInfo.jsx';
 import Translations from './pages/Translations.jsx';
 import Leaderboard  from './pages/Leaderboard.jsx';
@@ -49,6 +50,7 @@ export default function App() {
         <Route path="quarter-info" element={<QuarterInfo />} />
         <Route path="translations" element={<Translations />} />
         <Route path="subscribers"  element={<Subscribers />} />
+        <Route path="accounts"     element={<Accounts />} />
         <Route path="pricing"      element={<Pricing />} />
         <Route path="approvals"    element={<Approvals />} />
         <Route path="churches"            element={<Churches />} />

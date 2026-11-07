@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
   LayoutGrid, Library, BookOpen, BookMarked, Zap, Music2, CalendarDays, Languages,
   CreditCard, DollarSign, ShieldCheck, Building2, Trophy, Megaphone, Quote,
-  Search, MoreHorizontal, LogOut, ChevronsUpDown, Flame, Clapperboard,
+  Search, MoreHorizontal, LogOut, ChevronsUpDown, Flame, Clapperboard, KeyRound,
 } from 'lucide-react';
 import { useAuth } from '../auth.jsx';
 
@@ -25,6 +25,9 @@ const NAV = [
     { to: '/subscribers',  icon: CreditCard,   label: 'Subscribers' },
     { to: '/pricing',      icon: DollarSign,   label: 'Pricing' },
     { to: '/banners',      icon: Megaphone,    label: 'Ad Banners' },
+  ]},
+  { section: 'Users', items: [
+    { to: '/accounts',     icon: KeyRound,     label: 'Accounts' },
   ]},
   { section: 'Churches', items: [
     { to: '/approvals',    icon: ShieldCheck,  label: 'Approvals' },
