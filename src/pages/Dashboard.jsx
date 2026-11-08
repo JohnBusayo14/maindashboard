@@ -127,6 +127,8 @@ export default function Dashboard() {
         </div>
       )}
 
+      <AppUpdatesCard req={req} />
+
       {/* Two-column body */}
       <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
         {/* Units by category */}
@@ -265,6 +267,55 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// Switch for the mobile app's forced over-the-air updates (backend
+// routes/appConfig.js → app components/UpdateGate.jsx).
+function AppUpdatesCard({ req }) {
+  const [force, setForce]   = useState(null);   // null = loading / unknown
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg]       = useState('');
+
+  useEffect(() => {
+    req('/api/app-config')
+      .then((c) => setForce(c.force_ota !== false))
+      .catch(() => setMsg('Could not read the current setting (the backend may not be deployed yet).'));
+  }, [req]);
+
+  const toggle = async () => {
+    setSaving(true);
+    setMsg('');
+    try {
+      const c = await req('/api/admin/app-config', 'PUT', { force_ota: !force });
+      setForce(c.force_ota !== false);
+      setMsg('Saved. Phones pick this up the next time they check for an update.');
+    } catch (e) {
+      setMsg(e.message || 'Failed to save.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="mt-4 card flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        <h2 className="text-[15px] font-semibold text-ink">Force mobile app updates</h2>
+        <p className="mt-1 text-sm text-zinc-500">
+          {force === false
+            ? 'Off — new over-the-air updates download quietly and apply the next time a user reopens the app.'
+            : 'On — when a new over-the-air update is published, the app shows “Updating Gospelar…”, installs it and restarts.'}
+        </p>
+        {msg && <p className="mt-1 text-xs font-medium text-zinc-600">{msg}</p>}
+      </div>
+      <button
+        onClick={toggle}
+        disabled={force === null || saving}
+        className={force === false ? 'btn-primary shrink-0' : 'btn-ghost shrink-0'}
+      >
+        {saving ? 'Saving…' : force === false ? 'Turn on' : 'Turn off'}
+      </button>
     </div>
   );
 }
