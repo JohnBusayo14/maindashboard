@@ -11,6 +11,7 @@ import BibleVerses  from './pages/BibleVerses.jsx';
 import Banners      from './pages/Banners.jsx';
 import Pricing      from './pages/Pricing.jsx';
 import BankTransfers from './pages/BankTransfers.jsx';
+import Notifications from './pages/Notifications.jsx';
 import Subscribers  from './pages/Subscribers.jsx';
 import Accounts     from './pages/Accounts.jsx';
 import QuarterInfo  from './pages/QuarterInfo.jsx';
@@ -54,6 +55,7 @@ export default function App() {
         <Route path="accounts"     element={<Accounts />} />
         <Route path="pricing"      element={<Pricing />} />
         <Route path="bank-transfers" element={<BankTransfers />} />
+        <Route path="notifications" element={<Notifications />} />
         <Route path="approvals"    element={<Approvals />} />
         <Route path="churches"            element={<Churches />} />
         <Route path="books"                 element={<Books />} />
