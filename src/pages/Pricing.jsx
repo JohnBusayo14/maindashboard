@@ -8,14 +8,14 @@ import { useToast } from '../components/Toast.jsx';
 // map still render via the generic fallback in metaFor() — so adding a new
 // book SKU on the server doesn't require touching the dashboard.
 const PLAN_META = {
-  single: { label: 'Single Category', tag: 'POPULAR',    accent: 'from-brand-50 to-white',   pill: 'text-brand-700  bg-brand-50',    sub: 'Access one age group of the learner’s choice.' },
-  all:    { label: 'All Categories',  tag: 'BEST VALUE', accent: 'from-violet-50 to-white',  pill: 'text-violet-700 bg-violet-50',   sub: 'Unlocks every age group at a single price.' },
+  single: { label: 'Single Category (legacy)', tag: 'NOT SOLD', accent: 'from-brand-50 to-white', pill: 'text-brand-700  bg-brand-50', sub: 'No longer sold in the app — kept for existing subscribers.' },
+  all:    { label: 'Gospelar Premium', tag: 'IN APP', accent: 'from-violet-50 to-white',  pill: 'text-violet-700 bg-violet-50',   sub: 'The only plan sold in the app: removes all ads and unlocks Victory Month Prayer + every premium book.' },
   book_victory_month_prayer: {
     label: 'Victory Month Prayer Book',
-    tag:   'BOOK',
+    tag:   'LEGACY',
     accent:'from-amber-50 to-white',
     pill:  'text-amber-700 bg-amber-50',
-    sub:   'One-time purchase to unlock the 30 daily prayers and group vigils in the Victory Month Prayer book.',
+    sub:   'No longer sold on its own — the app unlocks this book with Gospelar Premium. Kept for past buyers.',
   },
 };
 
