@@ -14,6 +14,7 @@ import BankTransfers from './pages/BankTransfers.jsx';
 import Notifications from './pages/Notifications.jsx';
 import Subscribers  from './pages/Subscribers.jsx';
 import Accounts     from './pages/Accounts.jsx';
+import Rewards      from './pages/Rewards.jsx';
 import QuarterInfo  from './pages/QuarterInfo.jsx';
 import Translations from './pages/Translations.jsx';
 import Leaderboard  from './pages/Leaderboard.jsx';
@@ -53,6 +54,7 @@ export default function App() {
         <Route path="translations" element={<Translations />} />
         <Route path="subscribers"  element={<Subscribers />} />
         <Route path="accounts"     element={<Accounts />} />
+        <Route path="rewards"      element={<Rewards />} />
         <Route path="pricing"      element={<Pricing />} />
         <Route path="bank-transfers" element={<BankTransfers />} />
         <Route path="notifications" element={<Notifications />} />
