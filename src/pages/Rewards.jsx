@@ -16,6 +16,9 @@ import Badge from '../components/Badge.jsx';
 const fmtWhen = (d) =>
   d ? new Date(d).toLocaleString('en-NG', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
 
+// Cash payouts are built but switched off (backend: REWARDS_CASH_ENABLED=1). Flip this when you turn them on.
+const CASH_ENABLED = false;
+
 const EMPTY = { title: '', value_label: '', xp_cost: '', description: '', emoji: '🎁', per_user_limit: '', active: true, kind: 'voucher' };
 
 export default function Rewards() {
@@ -237,7 +240,7 @@ function ItemModal({ item, req, toast, onClose, onSaved }) {
         <Field label="Type" hint={f.kind === 'cash' ? 'The player enters bank details; you pay them by hand, then mark it paid.' : 'The player receives one of the voucher codes you load.'}>
           <select className="input" value={f.kind} disabled={!isNew} onChange={set('kind')}>
             <option value="voucher">Voucher (codes you load)</option>
-            <option value="cash">Cash payout (bank transfer)</option>
+            {(CASH_ENABLED || f.kind === 'cash') && <option value="cash">Cash payout (bank transfer)</option>}
           </select>
         </Field>
         <div className="grid grid-cols-[4.5rem_1fr] gap-3">
