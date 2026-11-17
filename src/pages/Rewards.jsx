@@ -16,7 +16,7 @@ import Badge from '../components/Badge.jsx';
 const fmtWhen = (d) =>
   d ? new Date(d).toLocaleString('en-NG', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
 
-const EMPTY = { title: '', value_label: '', xp_cost: '', description: '', emoji: '🎁', per_user_limit: '', active: true };
+const EMPTY = { title: '', value_label: '', xp_cost: '', description: '', emoji: '🎁', per_user_limit: '', active: true, kind: 'voucher' };
 
 export default function Rewards() {
   const { api, key } = useAuth();
@@ -29,6 +29,8 @@ export default function Rewards() {
   const [loading, setLoading] = useState(true);
   const [edit, setEdit]     = useState(null);     // item or EMPTY (new)
   const [codesFor, setCodesFor] = useState(null);
+  const [proc, setProc]   = useState(null);     // { r, status } — settling a cash request
+  const pendingCash = redeems.filter((r) => r.kind === 'cash' && r.status === 'pending').length;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -70,7 +72,7 @@ export default function Rewards() {
         </div>
         <div className="flex items-center gap-2">
           <div className="flex rounded-lg ring-1 ring-zinc-200 bg-white p-0.5 text-sm">
-            {[['items', 'Rewards'], ['redeemed', 'Redeemed']].map(([id, label]) => (
+            {[['items', 'Rewards'], ['redeemed', pendingCash ? `Redeemed · ${pendingCash} to pay` : 'Redeemed']].map(([id, label]) => (
               <button key={id} onClick={() => setTab(id)}
                 className={`rounded-md px-3 py-1 font-semibold transition ${tab === id ? 'bg-zinc-100 text-ink' : 'text-zinc-500 hover:text-ink'}`}>
                 {label}
@@ -109,12 +111,12 @@ export default function Rewards() {
                   {items.map((it) => (
                     <tr key={it.id} className="hover:bg-zinc-25">
                       <td className="px-5 py-2.5">
-                        <div className="font-semibold text-ink">{it.emoji} {it.title}</div>
+                        <div className="font-semibold text-ink">{it.emoji} {it.title} {it.kind === 'cash' && <Badge variant="amber">Cash</Badge>}</div>
                         <div className="text-xs text-zinc-500">{[it.value_label, it.per_user_limit ? `max ${it.per_user_limit} per person` : ''].filter(Boolean).join(' · ')}</div>
                       </td>
                       <td className="px-5 py-2.5 text-right font-semibold text-ink">{Number(it.xp_cost).toLocaleString()}</td>
                       <td className="px-5 py-2.5 text-right">
-                        <span className={it.stock === 0 ? 'font-semibold text-red-600' : it.stock < 5 ? 'font-semibold text-amber-600' : 'text-zinc-700'}>{it.stock}</span>
+                        {it.kind === 'cash' ? <span className="text-zinc-400">—</span> : <span className={it.stock === 0 ? 'font-semibold text-red-600' : it.stock < 5 ? 'font-semibold text-amber-600' : 'text-zinc-700'}>{it.stock}</span>}
                       </td>
                       <td className="px-5 py-2.5 text-right text-zinc-700">{it.redeemed}</td>
                       <td className="px-5 py-2.5">
@@ -124,7 +126,7 @@ export default function Rewards() {
                       </td>
                       <td className="px-5 py-2.5">
                         <div className="flex justify-end gap-1.5">
-                          <button onClick={() => setCodesFor(it)} className="btn-primary px-2.5 py-1.5 text-xs"><Ticket className="h-3.5 w-3.5" /> Add codes</button>
+                          {it.kind !== 'cash' && <button onClick={() => setCodesFor(it)} className="btn-primary px-2.5 py-1.5 text-xs"><Ticket className="h-3.5 w-3.5" /> Add codes</button>}
                           <button onClick={() => setEdit(it)} className="btn-ghost px-2.5 py-1.5 text-xs"><Pencil className="h-3.5 w-3.5" /></button>
                           <button onClick={() => remove(it)} className="btn-ghost px-2.5 py-1.5 text-xs text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>
                         </div>
@@ -146,7 +148,7 @@ export default function Rewards() {
                 <thead className="bg-zinc-25">
                   <tr className="text-left text-[11px] font-bold uppercase tracking-wider text-zinc-500">
                     <th className="px-5 py-2.5">When</th><th className="px-5 py-2.5">Player</th>
-                    <th className="px-5 py-2.5">Reward</th><th className="px-5 py-2.5 text-right">XP</th><th className="px-5 py-2.5">Code given</th>
+                    <th className="px-5 py-2.5">Reward</th><th className="px-5 py-2.5 text-right">XP</th><th className="px-5 py-2.5">Voucher code / bank details</th><th className="px-5 py-2.5">Status</th><th className="px-5 py-2.5"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-100">
@@ -156,7 +158,30 @@ export default function Rewards() {
                       <td className="px-5 py-2.5 text-ink">{r.email}</td>
                       <td className="px-5 py-2.5">{r.title}{r.value_label ? <span className="text-zinc-500"> · {r.value_label}</span> : null}</td>
                       <td className="px-5 py-2.5 text-right">{r.xp_cost}</td>
-                      <td className="px-5 py-2.5 font-mono text-xs text-zinc-700">{r.code}</td>
+                      <td className="px-5 py-2.5 text-xs text-zinc-700">
+                        {r.kind === 'cash' ? (
+                          <div className="leading-relaxed">
+                            <div className="font-semibold text-ink">{r.account_name}</div>
+                            <div className="font-mono">{r.account_number} · {r.bank_name}</div>
+                            {r.paid_ref && <div className="text-zinc-500">Ref: {r.paid_ref}</div>}
+                            {r.admin_note && <div className="text-zinc-500">Note: {r.admin_note}</div>}
+                          </div>
+                        ) : <span className="font-mono">{r.code}</span>}
+                      </td>
+                      <td className="px-5 py-2.5">
+                        {r.kind === 'cash'
+                          ? <Badge variant={r.status === 'paid' ? 'green' : r.status === 'rejected' ? 'red' : 'amber'}>{r.status === 'pending' ? 'To pay' : r.status}</Badge>
+                          : <Badge variant="zinc">Code issued</Badge>}
+                        {r.processed_at && <div className="mt-1 text-[11px] text-zinc-500">{fmtWhen(r.processed_at)}</div>}
+                      </td>
+                      <td className="px-5 py-2.5">
+                        {r.kind === 'cash' && r.status === 'pending' && (
+                          <div className="flex justify-end gap-1.5">
+                            <button onClick={() => setProc({ r, status: 'paid' })} className="btn-primary px-2.5 py-1.5 text-xs">Mark paid</button>
+                            <button onClick={() => setProc({ r, status: 'rejected' })} className="btn-ghost px-2.5 py-1.5 text-xs text-red-600">Reject</button>
+                          </div>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -167,6 +192,7 @@ export default function Rewards() {
       )}
 
       {edit && <ItemModal item={edit} req={req} toast={toast} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load(); }} />}
+      {proc && <ProcessModal proc={proc} req={req} toast={toast} onClose={() => setProc(null)} onDone={() => { setProc(null); load(); }} />}
       {codesFor && <CodesModal item={codesFor} req={req} toast={toast} onClose={() => setCodesFor(null)} onSaved={() => { setCodesFor(null); load(); }} />}
     </div>
   );
@@ -187,7 +213,7 @@ function ItemModal({ item, req, toast, onClose, onSaved }) {
   const [f, setF] = useState({
     title: item.title || '', value_label: item.value_label || '', xp_cost: item.xp_cost ?? '',
     description: item.description || '', emoji: item.emoji || '🎁',
-    per_user_limit: item.per_user_limit ?? '', active: item.active !== false,
+    per_user_limit: item.per_user_limit ?? '', active: item.active !== false, kind: item.kind || 'voucher',
   });
   const [saving, setSaving] = useState(false);
   const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }));
@@ -199,7 +225,7 @@ function ItemModal({ item, req, toast, onClose, onSaved }) {
     try {
       const body = { ...f, xp_cost: parseInt(f.xp_cost, 10), per_user_limit: f.per_user_limit === '' ? null : parseInt(f.per_user_limit, 10) };
       await req(isNew ? '/api/admin/rewards' : `/api/admin/rewards/${item.id}`, isNew ? 'POST' : 'PUT', body);
-      toast.success(isNew ? 'Reward created — now add voucher codes.' : 'Saved.');
+      toast.success(isNew ? (f.kind === 'cash' ? 'Cash reward created.' : 'Reward created — now add voucher codes.') : 'Saved.');
       onSaved();
     } catch (e) { toast.error(e.message || 'Could not save.'); } finally { setSaving(false); }
   };
@@ -208,6 +234,12 @@ function ItemModal({ item, req, toast, onClose, onSaved }) {
     <Modal open onClose={onClose} title={isNew ? 'New reward' : 'Edit reward'} sub="What players can buy with XP"
       footer={<><button onClick={onClose} className="btn-ghost">Cancel</button><button onClick={save} disabled={saving} className="btn-primary">{saving ? 'Saving…' : 'Save'}</button></>}>
       <div className="space-y-4">
+        <Field label="Type" hint={f.kind === 'cash' ? 'The player enters bank details; you pay them by hand, then mark it paid.' : 'The player receives one of the voucher codes you load.'}>
+          <select className="input" value={f.kind} disabled={!isNew} onChange={set('kind')}>
+            <option value="voucher">Voucher (codes you load)</option>
+            <option value="cash">Cash payout (bank transfer)</option>
+          </select>
+        </Field>
         <div className="grid grid-cols-[4.5rem_1fr] gap-3">
           <Field label="Icon"><input className="input text-center text-lg" value={f.emoji} onChange={set('emoji')} maxLength={4} /></Field>
           <Field label="Title"><input className="input" value={f.title} onChange={set('title')} placeholder="MTN airtime" autoFocus /></Field>
@@ -251,6 +283,49 @@ function CodesModal({ item, req, toast, onClose, onSaved }) {
       <Field label="Voucher codes" hint="One per line (or separated by commas). Duplicates are skipped. Up to 1,000 at a time.">
         <textarea className="input font-mono text-xs" rows={10} value={text} onChange={(e) => setText(e.target.value)} placeholder={'1234-5678-9012\n2345-6789-0123'} autoFocus />
       </Field>
+    </Modal>
+  );
+}
+
+function ProcessModal({ proc, req, toast, onClose, onDone }) {
+  const { r, status } = proc;
+  const paying = status === 'paid';
+  const [reference, setReference] = useState('');
+  const [note, setNote] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await req(`/api/admin/rewards/redemptions/${r.id}`, 'PUT', { status, reference, note });
+      toast.success(paying ? 'Marked as paid.' : 'Rejected — the XP was returned to the player.');
+      onDone();
+    } catch (e) { toast.error(e.message || 'Could not update.'); setSaving(false); }
+  };
+
+  return (
+    <Modal open onClose={onClose} title={paying ? 'Mark as paid' : 'Reject this request'}
+      sub={`${r.title}${r.value_label ? ' · ' + r.value_label : ''} — ${r.email}`}
+      footer={<><button onClick={onClose} className="btn-ghost">Cancel</button>
+        <button onClick={save} disabled={saving} className={paying ? 'btn-primary' : 'btn-primary bg-red-600 hover:bg-red-700'}>{saving ? 'Saving…' : paying ? 'Confirm paid' : 'Reject and refund XP'}</button></>}>
+      <div className="space-y-4">
+        <div className="rounded-lg bg-zinc-50 p-3 text-sm">
+          <div className="font-semibold text-ink">{r.account_name}</div>
+          <div className="font-mono text-xs text-zinc-700">{r.account_number} · {r.bank_name}</div>
+        </div>
+        {paying ? (
+          <>
+            <p className="text-xs text-zinc-500">Only confirm after you have sent the money. This cannot be undone.</p>
+            <Field label="Transfer reference" hint="Your bank or Paystack reference, for your records."><input className="input" value={reference} onChange={(e) => setReference(e.target.value)} autoFocus /></Field>
+            <Field label="Note to the player (optional)"><input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Sent to your GTBank account" /></Field>
+          </>
+        ) : (
+          <>
+            <p className="text-xs text-zinc-500">The {r.xp_cost.toLocaleString()} XP is returned to the player and they can try again. This cannot be undone.</p>
+            <Field label="Reason (the player will see it)"><input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Account name doesn't match" autoFocus /></Field>
+          </>
+        )}
+      </div>
     </Modal>
   );
 }
